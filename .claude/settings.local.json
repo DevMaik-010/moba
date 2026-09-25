@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --test \"lib/bracket/bracket.test.ts\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\('zod', require\\('zod/package.json'\\).version\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(timeout 300 npx next build)",
+      "Bash(npm test *)",
+      "Bash(env)",
+      "Bash(npm run *)",
+      "Bash(claude --version)",
+      "Bash(claude mcp *)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}

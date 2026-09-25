@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface-0: #0a0b10;
+  --color-surface-1: #12141d;
+  --color-surface-2: #1a1d29;
+  --color-surface-3: #242838;
+  --color-line: #2c3145;
+  --color-ink: #eef1f8;
+  --color-ink-dim: #9aa3bd;
+  --color-ink-faint: #656d87;
+
+  --color-brand: #4f7cff;
+  --color-brand-soft: #1e2a52;
+  --color-win: #2dd4a7;
+  --color-warn: #f5b544;
+  --color-bad: #f2545b;
+
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-surface-0);
+  background-image: radial-gradient(1100px 520px at 50% -15%, #1b2447 0%, transparent 65%);
+  background-repeat: no-repeat;
+  color: var(--color-ink);
+}
+
+/* Pequeño sistema de utilidades para no repetir cadenas larguísimas de clases. */
+@utility card {
+  background-color: var(--color-surface-1);
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+}
+
+@utility field {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface-2);
+  padding: 0.55rem 0.75rem;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+@utility label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-dim);
+  margin-bottom: 0.35rem;
+}
+
+.field:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand) 25%, transparent);
+}
+
+.field::placeholder {
+  color: var(--color-ink-faint);
+}
