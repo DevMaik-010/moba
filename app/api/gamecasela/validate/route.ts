@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { lookupAccount } from "@/lib/gamecasela";
+import { consumeLookupQuota, RateLimitError } from "@/lib/mlbb";
 import { gamecaselaLookupSchema } from "@/lib/gamecasela/types";
 import { getSession } from "@/lib/supabase/server";
 
 /**
  * Valida una cuenta de juego contra la API de gamecasela y devuelve su
  * `userName`. Solo para usuarios con sesión: la consulta sale desde la IP del
- * servidor con un token anónimo de Firebase gestionado en el servidor.
+ * servidor con un token anónimo de Firebase gestionado en el servidor, así que
+ * comparte el cupo por usuario de la validación de MLBB.
  */
 export async function POST(request: Request) {
   const session = await getSession();
@@ -20,6 +22,19 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Datos inválidos" },
       { status: 400 },
+    );
+  }
+
+  try {
+    await consumeLookupQuota(session.userId, parsed.data.userId, parsed.data.zoneId);
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 429 });
+    }
+    console.error("[gamecasela/validate]", error);
+    return NextResponse.json(
+      { error: "No se pudo validar la cuenta en este momento" },
+      { status: 503 },
     );
   }
 

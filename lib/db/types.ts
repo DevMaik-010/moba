@@ -115,8 +115,72 @@ export type Match = {
   status: MatchStatus;
   next_match_id: string | null;
   next_side: MatchSide | null;
+  /** Lado cuyo capitán crea la sala en MLBB. Se sortea al quedar listo. */
+  host_side: MatchSide | null;
   scheduled_at: string | null;
   updated_at: string;
+};
+
+/** Fila de `match_rooms`. Solo la lee el admin; el resto pasa por get_match_room. */
+export type MatchRoom = {
+  match_id: string;
+  tournament_id: string;
+  code_a: string;
+  code_b: string;
+  room_id: string | null;
+  room_posted_at: string | null;
+  claim_side: MatchSide | null;
+  claim_score_a: number | null;
+  claim_score_b: number | null;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  disputed_at: string | null;
+  dispute_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+/** Lo que devuelve get_match_room: `room` solo viene con código válido o siendo admin. */
+export type MatchRoomView = {
+  match: {
+    id: string;
+    round: number;
+    slot: number;
+    status: MatchStatus;
+    score_a: number;
+    score_b: number;
+    winner_id: string | null;
+    host_side: MatchSide | null;
+  };
+  tournament: {
+    id: string;
+    name: string;
+    slug: string;
+    status: TournamentStatus;
+    mode: TournamentMode;
+    rounds: number;
+  };
+  team_a: { id: string; name: string; tag: string } | null;
+  team_b: { id: string; name: string; tag: string } | null;
+  has_room: boolean;
+  viewer: MatchSide | "admin" | null;
+  /** Lado que capitanea el usuario con sesión, si juega este partido. */
+  captain_side: MatchSide | null;
+  /** Código del capitán con sesión, para que lo comparta con su equipo. */
+  my_code: string | null;
+  room: {
+    room_id: string | null;
+    room_posted_at: string | null;
+    claim_side: MatchSide | null;
+    claim_score_a: number | null;
+    claim_score_b: number | null;
+    claimed_at: string | null;
+    disputed_at: string | null;
+    dispute_note: string | null;
+    resolved_at: string | null;
+    code_a: string | null;
+    code_b: string | null;
+  } | null;
 };
 
 export type MlbbLookupLogRow = {
@@ -169,6 +233,7 @@ export type Database = {
       saved_teams: Row<SavedTeam>;
       saved_team_members: Row<SavedTeamMember>;
       matches: Row<Match>;
+      match_rooms: Row<MatchRoom>;
       mlbb_account_cache: Row<MlbbAccountCacheRow>;
       mlbb_lookup_log: Row<MlbbLookupLogRow>;
       audit_log: Row<AuditLogRow>;
@@ -227,6 +292,24 @@ export type Database = {
       cancel_tournament: { Args: { p_tournament_id: string }; Returns: undefined };
       delete_tournament: { Args: { p_tournament_id: string }; Returns: undefined };
       remove_team: { Args: { p_team_id: string }; Returns: undefined };
+      get_match_room: {
+        Args: { p_match_id: string; p_code?: string | null };
+        Returns: MatchRoomView | null;
+      };
+      post_match_room: {
+        Args: { p_match_id: string; p_room_id: string };
+        Returns: undefined;
+      };
+      claim_match_win: {
+        Args: { p_match_id: string; p_my_score: number; p_rival_score: number };
+        Returns: undefined;
+      };
+      dispute_match_claim: {
+        Args: { p_match_id: string; p_note: string };
+        Returns: undefined;
+      };
+      confirm_match_claim: { Args: { p_match_id: string }; Returns: undefined };
+      reject_match_claim: { Args: { p_match_id: string }; Returns: undefined };
       report_match: {
         Args: { p_match_id: string; p_score_a: number; p_score_b: number };
         Returns: undefined;

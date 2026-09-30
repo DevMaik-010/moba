@@ -31,15 +31,26 @@ function TournamentList({ tournaments }: { tournaments: Tournament[] }) {
 export default async function AdminHome() {
   const supabase = await createClient();
 
-  const [{ data: tournaments }, { count: pending }] = await Promise.all([
+  const [{ data: tournaments }, { count: pending }, { data: claims }] = await Promise.all([
     supabase.from("tournaments").select("*").order("created_at", { ascending: false }),
     supabase
       .from("team_members")
       .select("id", { count: "exact", head: true })
       .eq("validation_status", "pending"),
+    supabase
+      .from("match_rooms")
+      .select("tournament_id")
+      .not("claim_side", "is", null)
+      .is("resolved_at", null),
   ]);
 
   const list = (tournaments ?? []) as Tournament[];
+
+  // Resultados que reportaron los capitanes y esperan verificación, por torneo.
+  const claimsByTournament = new Map<string, number>();
+  for (const c of claims ?? []) {
+    claimsByTournament.set(c.tournament_id, (claimsByTournament.get(c.tournament_id) ?? 0) + 1);
+  }
   const active = list.filter((t) => !t.archived_at);
   const archived = list.filter((t) => t.archived_at);
 
@@ -66,6 +77,21 @@ export default async function AdminHome() {
           </span>
         </Link>
       ) : null}
+
+      {[...claimsByTournament].map(([tournamentId, count]) => (
+        <Link
+          key={tournamentId}
+          href={`/admin/torneos/${tournamentId}/partidos`}
+          className="card block border-brand/40 bg-brand/5 p-4 text-sm"
+        >
+          <span className="font-semibold text-brand">
+            {count} {count === 1 ? "resultado por verificar" : "resultados por verificar"}
+          </span>
+          <span className="ml-2 text-ink-dim">
+            {list.find((t) => t.id === tournamentId)?.name} →
+          </span>
+        </Link>
+      ))}
 
       {list.length === 0 ? (
         <div className="card p-10 text-center text-sm text-ink-dim">

@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { type AdminFormState } from "@/app/admin/actions";
+import { LocalDateTimeInput } from "@/components/ui/local-datetime-input";
 import { BRACKET_SIZES, TEAM_SIZE_BY_MODE } from "@/lib/db/types";
 import type { Tournament } from "@/lib/db/types";
 
@@ -24,14 +25,9 @@ interface Props {
   action: (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
   /** Si viene, el formulario edita ese torneo en vez de crear uno. */
   tournament?: Tournament;
-  /**
-   * Inicio ya formateado para `datetime-local`. Se calcula en el servidor, con
-   * la misma zona horaria con la que la acción interpreta la fecha al guardar.
-   */
-  startsAtInput?: string;
 }
 
-export function TournamentForm({ action: serverAction, tournament, startsAtInput }: Props) {
+export function TournamentForm({ action: serverAction, tournament }: Props) {
   const [state, action] = useActionState<AdminFormState, FormData>(serverAction, {});
   // Una vez abierto, el cuadro ya está dibujado con ese modo y esos cupos.
   const structureLocked = tournament !== undefined && tournament.status !== "draft";
@@ -113,12 +109,11 @@ export function TournamentForm({ action: serverAction, tournament, startsAtInput
         <label className="label" htmlFor="startsAt">
           Inicio (opcional)
         </label>
-        <input
+        <LocalDateTimeInput
           id="startsAt"
           name="startsAt"
-          type="datetime-local"
           className="field"
-          defaultValue={startsAtInput}
+          defaultIso={tournament?.starts_at}
         />
       </div>
 

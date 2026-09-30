@@ -40,13 +40,19 @@ export default async function AdminTorneoPage({ params }: PageProps<"/admin/torn
 
   if (!tournament) notFound();
 
-  const [{ data: teams }, { data: matches }] = await Promise.all([
+  const [{ data: teams }, { data: matches }, { count: openClaims }] = await Promise.all([
     supabase
       .from("teams")
       .select("*")
       .eq("tournament_id", id)
       .order("seed", { nullsFirst: false }),
     supabase.from("matches").select("*").eq("tournament_id", id).order("round").order("slot"),
+    supabase
+      .from("match_rooms")
+      .select("match_id", { count: "exact", head: true })
+      .eq("tournament_id", id)
+      .not("claim_side", "is", null)
+      .is("resolved_at", null),
   ]);
 
   const allTeams = (teams ?? []) as Team[];
@@ -108,7 +114,8 @@ export default async function AdminTorneoPage({ params }: PageProps<"/admin/torn
               href={`/admin/torneos/${tournament.id}/partidos`}
               className="rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-white"
             >
-              Reportar resultados
+              Partidos y resultados
+              {(openClaims ?? 0) > 0 ? ` · ${openClaims} por verificar` : ""}
             </Link>
           ) : null}
 
@@ -182,6 +189,7 @@ export default async function AdminTorneoPage({ params }: PageProps<"/admin/torn
           tournamentId={tournament.id}
           initialMatches={(matches ?? []) as Match[]}
           initialTeams={registered}
+          slug={tournament.slug}
         />
       </section>
 

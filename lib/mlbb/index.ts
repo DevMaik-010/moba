@@ -84,7 +84,16 @@ async function writeCache(
   });
 }
 
-async function enforceRateLimit(profileId: string): Promise<void> {
+/**
+ * Descuenta una consulta a proveedores externos del cupo del usuario, o lanza
+ * RateLimitError si ya lo agotó. Toda ruta que consulte a un proveedor pasa por
+ * aquí, para que el servidor no sirva de proxy ilimitado.
+ */
+export async function consumeLookupQuota(
+  profileId: string,
+  gameUserId: string,
+  zoneId: string,
+): Promise<void> {
   const admin = createAdminClient();
   const since = new Date(Date.now() - RATE_LIMIT.windowMs).toISOString();
 
@@ -95,6 +104,12 @@ async function enforceRateLimit(profileId: string): Promise<void> {
     .gte("created_at", since);
 
   if ((count ?? 0) >= RATE_LIMIT.max) throw new RateLimitError();
+
+  await admin.from("mlbb_lookup_log").insert({
+    profile_id: profileId,
+    game_user_id: gameUserId,
+    zone_id: zoneId,
+  });
 }
 
 /**
@@ -109,14 +124,7 @@ export async function lookupMlbbAccount(
   const cached = await readCache(gameUserId, zoneId);
   if (cached) return cached;
 
-  await enforceRateLimit(profileId);
-
-  const admin = createAdminClient();
-  await admin.from("mlbb_lookup_log").insert({
-    profile_id: profileId,
-    game_user_id: gameUserId,
-    zone_id: zoneId,
-  });
+  await consumeLookupQuota(profileId, gameUserId, zoneId);
 
   let last: MlbbLookupResult = { status: "unavailable", provider: "ninguno" };
 

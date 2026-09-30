@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { safeReturnPath } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export interface AuthFormState {
@@ -22,12 +23,6 @@ const signUpSchema = credentialsSchema.extend({
     .min(3, "El nombre debe tener al menos 3 caracteres")
     .max(40, "El nombre es demasiado largo"),
 });
-
-/** Solo rutas internas: evita que `?next=` mande al usuario a otro dominio. */
-function safeNext(value: FormDataEntryValue | null): string {
-  const next = typeof value === "string" ? value : "";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/torneos";
-}
 
 export async function signIn(
   _prev: AuthFormState,
@@ -48,7 +43,7 @@ export async function signIn(
   }
 
   revalidatePath("/", "layout");
-  redirect(safeNext(formData.get("next")));
+  redirect(safeReturnPath(formData.get("next")) ?? "/torneos");
 }
 
 export async function signUp(
@@ -72,7 +67,15 @@ export async function signUp(
   });
 
   if (error) {
-    return { error: error.message };
+    // El mensaje crudo de Supabase ("User already registered") revela qué
+    // correos tienen cuenta; solo se distingue lo que el usuario puede corregir.
+    if (error.code === "weak_password") {
+      return { error: "La contraseña es muy débil: usa una más larga o menos común" };
+    }
+    if (error.code === "over_email_send_rate_limit" || error.status === 429) {
+      return { error: "Demasiados intentos. Espera unos minutos." };
+    }
+    return { error: "No se pudo crear la cuenta. Si ya tienes una, inicia sesión." };
   }
 
   // Con confirmación de correo activada en Supabase no hay sesión todavía.

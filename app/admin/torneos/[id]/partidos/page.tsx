@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { MatchBadge } from "@/components/ui/badge";
+import { confirmMatchClaim, rejectMatchClaim } from "@/app/admin/actions";
+import { ActionForm } from "@/components/admin/action-form";
+import { Badge, MatchBadge } from "@/components/ui/badge";
 import { roundLabel } from "@/lib/bracket/bracket";
 import { createClient } from "@/lib/supabase/server";
-import type { Match, Team, Tournament } from "@/lib/db/types";
+import { matchPath } from "@/lib/match-access";
+import type { Match, MatchRoom, Team, Tournament } from "@/lib/db/types";
 import { ReportForm } from "./report-form";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +26,16 @@ export default async function PartidosPage({
 
   if (!tournament) notFound();
 
-  const [{ data: matches }, { data: teams }] = await Promise.all([
+  const [{ data: matches }, { data: teams }, { data: rooms }] = await Promise.all([
     supabase.from("matches").select("*").eq("tournament_id", id).order("round").order("slot"),
     supabase.from("teams").select("*").eq("tournament_id", id),
+    supabase.from("match_rooms").select("*").eq("tournament_id", id),
   ]);
+
+  const roomByMatch = new Map(((rooms ?? []) as MatchRoom[]).map((r) => [r.match_id, r]));
+  const openClaims = ((rooms ?? []) as MatchRoom[]).filter(
+    (r) => r.claim_side && !r.resolved_at,
+  ).length;
 
   const teamsById = new Map(((teams ?? []) as Team[]).map((t) => [t.id, t]));
   const all = (matches ?? []) as Match[];
@@ -56,6 +65,13 @@ export default async function PartidosPage({
             {tournament.status}).
           </p>
         ) : null}
+        {openClaims > 0 ? (
+          <p className="mt-2 rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-sm text-brand">
+            {openClaims}{" "}
+            {openClaims === 1 ? "resultado reportado espera" : "resultados reportados esperan"} tu
+            verificación.
+          </p>
+        ) : null}
       </div>
 
       {[...byRound.entries()]
@@ -68,6 +84,11 @@ export default async function PartidosPage({
 
             <ul className="space-y-3">
               {roundMatches.map((match) => {
+                const room = roomByMatch.get(match.id);
+                const claim = room?.claim_side && !room.resolved_at ? room : null;
+                const claimTeam = claim
+                  ? name(claim.claim_side === "a" ? match.team_a_id : match.team_b_id)
+                  : "";
                 const playable =
                   match.team_a_id !== null &&
                   match.team_b_id !== null &&
@@ -104,12 +125,83 @@ export default async function PartidosPage({
                           {match.score_a}–{match.score_b}
                         </span>
                       ) : null}
-                      <span className="ml-auto">
+                      <span className="ml-auto flex items-center gap-2">
+                        {claim ? (
+                          <Badge tone={claim.disputed_at ? "warn" : "brand"}>
+                            {claim.disputed_at ? "Disputado" : "Por verificar"}
+                          </Badge>
+                        ) : null}
                         <MatchBadge status={match.status} />
                       </span>
                     </div>
 
-                    {playable ? (
+                    {room ? (
+                      <dl className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-dim">
+                        <div>
+                          <dt className="inline text-ink-faint">Código {name(match.team_a_id)}: </dt>
+                          <dd className="inline font-mono">{room.code_a}</dd>
+                        </div>
+                        <div>
+                          <dt className="inline text-ink-faint">Código {name(match.team_b_id)}: </dt>
+                          <dd className="inline font-mono">{room.code_b}</dd>
+                        </div>
+                        <div>
+                          <dt className="inline text-ink-faint">Crea la sala: </dt>
+                          <dd className="inline">
+                            {name(match.host_side === "a" ? match.team_a_id : match.team_b_id)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="inline text-ink-faint">ID de sala: </dt>
+                          <dd className="inline font-mono">{room.room_id ?? "sin publicar"}</dd>
+                        </div>
+                        <Link
+                          href={matchPath(tournament.slug, match.id)}
+                          className="text-brand hover:brightness-125"
+                        >
+                          Ver sala →
+                        </Link>
+                      </dl>
+                    ) : null}
+
+                    {claim ? (
+                      <div
+                        className={`space-y-3 rounded-lg border p-3 ${
+                          claim.disputed_at ? "border-warn/40 bg-warn/5" : "border-brand/40 bg-brand/5"
+                        }`}
+                      >
+                        <p className="text-sm">
+                          <span className="font-semibold">{claimTeam}</span> reporta victoria{" "}
+                          <span className="font-mono">
+                            {claim.claim_score_a}–{claim.claim_score_b}
+                          </span>
+                          .
+                        </p>
+                        {claim.disputed_at ? (
+                          <p className="text-sm text-warn">
+                            El rival lo disputa: “{claim.dispute_note}”
+                          </p>
+                        ) : null}
+                        <div className="flex flex-wrap items-start gap-3">
+                          <ActionForm
+                            action={confirmMatchClaim}
+                            fields={{ matchId: match.id, tournamentId: id }}
+                            label="Confirmar y avanzar"
+                            variant="primary"
+                            confirm={`¿Confirmar la victoria de ${claimTeam}? Pasa a la siguiente fase.`}
+                          />
+                          <ActionForm
+                            action={rejectMatchClaim}
+                            fields={{ matchId: match.id, tournamentId: id }}
+                            label="Rechazar reporte"
+                            variant="danger"
+                            confirm="Se borra el reporte y los capitanes pueden volver a reportar. ¿Continuar?"
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {playable && !claim ? (
                       <ReportForm
                         matchId={match.id}
                         tournamentId={id}

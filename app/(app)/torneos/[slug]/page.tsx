@@ -1,15 +1,19 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 
 import { BracketView } from "@/components/bracket/bracket-view";
 import { TournamentBadge } from "@/components/ui/badge";
+import { LocalDate } from "@/components/ui/local-date";
+import { roundLabel } from "@/lib/bracket/bracket";
 import { createClient, getSession } from "@/lib/supabase/server";
 import { TEAM_SIZE_BY_MODE } from "@/lib/db/types";
 import type { Match, Team, Tournament } from "@/lib/db/types";
+import { CodeForm } from "./partido/[matchId]/match-forms";
 
 export const dynamic = "force-dynamic";
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="card px-4 py-3">
       <p className="text-[11px] uppercase tracking-wider text-ink-faint">{label}</p>
@@ -53,6 +57,21 @@ export default async function TorneoPage({ params }: PageProps<"/torneos/[slug]"
 
   const canRegister = tournament.status === "open" && registered.length < tournament.bracket_size;
 
+  // El enfrentamiento en curso del capitán: su código y quién crea la sala.
+  const allMatches = (matches ?? []) as Match[];
+  const myMatch =
+    myTeam && (tournament.status === "locked" || tournament.status === "running")
+      ? allMatches.find(
+          (m) =>
+            (m.team_a_id === myTeam.id || m.team_b_id === myTeam.id) &&
+            (m.status === "ready" || m.status === "live"),
+        )
+      : undefined;
+  const myRoom = myMatch
+    ? (await supabase.rpc("get_match_room", { p_match_id: myMatch.id, p_code: null })).data
+    : null;
+  const totalRounds = allMatches.reduce((max, m) => Math.max(max, m.round), 0);
+
   return (
     <div className="space-y-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -86,18 +105,45 @@ export default async function TorneoPage({ params }: PageProps<"/torneos/[slug]"
         ) : null}
       </header>
 
+      {myMatch && myRoom?.my_code ? (
+        <section className="card flex flex-wrap items-center gap-4 border-brand/50 bg-brand/5 p-5">
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-brand">
+              Tu enfrentamiento · {roundLabel(myMatch.round, totalRounds)}
+            </p>
+            <p className="font-semibold">
+              vs{" "}
+              {(myRoom.captain_side === "a" ? myRoom.team_b : myRoom.team_a)?.name ??
+                "Por definir"}
+            </p>
+            <p className="text-sm text-ink-dim">
+              {myRoom.match.host_side === myRoom.captain_side
+                ? "Tu equipo crea la sala en MLBB y publica el ID."
+                : "El rival crea la sala; verás el ID al entrar."}{" "}
+              Tu código:{" "}
+              <span className="font-mono font-semibold tracking-widest text-ink">
+                {myRoom.my_code}
+              </span>
+            </p>
+          </div>
+          <CodeForm matchId={myMatch.id} slug={tournament.slug} presetCode={myRoom.my_code} />
+        </section>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Equipos inscritos" value={`${registered.length} / ${tournament.bracket_size}`} />
         <Stat label="Modo" value={tournament.mode} />
         <Stat
           label="Inicio"
           value={
-            tournament.starts_at
-              ? new Date(tournament.starts_at).toLocaleDateString("es", {
-                  day: "2-digit",
-                  month: "short",
-                })
-              : "Por definir"
+            tournament.starts_at ? (
+              <LocalDate
+                iso={tournament.starts_at}
+                options={{ day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }}
+              />
+            ) : (
+              "Por definir"
+            )
           }
         />
       </div>
@@ -115,9 +161,10 @@ export default async function TorneoPage({ params }: PageProps<"/torneos/[slug]"
         <h2 className="mb-3 text-lg font-semibold">Cuadro</h2>
         <BracketView
           tournamentId={tournament.id}
-          initialMatches={(matches ?? []) as Match[]}
+          initialMatches={allMatches}
           initialTeams={registered}
           highlightTeamId={myTeam?.id ?? null}
+          slug={tournament.slug}
         />
       </section>
 

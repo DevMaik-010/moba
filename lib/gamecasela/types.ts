@@ -22,9 +22,19 @@ export interface GamecaselaLookupResult {
  * etiqueta de fuente que la API espera tanto en el query param como en el body.
  */
 export const gamecaselaLookupSchema = z.object({
-  userId: z.string().trim().min(1, "Falta el ID de usuario"),
-  zoneId: z.string().trim().default(""),
-  uidGame: z.string().trim().min(1, "Falta el identificador del juego"),
+  userId: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_-]{1,32}$/, "ID de usuario inválido"),
+  zoneId: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_-]{0,16}$/, "Zona inválida")
+    .default(""),
+  uidGame: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_-]{1,64}$/, "Identificador de juego inválido"),
   origen: z
     .string()
     .trim()

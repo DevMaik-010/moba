@@ -38,7 +38,12 @@ const tournamentSchema = z.object({
   bracketSize: z.coerce
     .number()
     .refine((n) => (BRACKET_SIZES as readonly number[]).includes(n), "Cupos inválidos"),
-  startsAt: z.string().trim().optional(),
+  // Llega en ISO desde el navegador, que ya aplicó la zona horaria del organizador.
+  startsAt: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => !v || !Number.isNaN(Date.parse(v)), "Fecha de inicio inválida"),
   rules: z.string().trim().max(4000).default(""),
 });
 
@@ -311,6 +316,45 @@ export async function reportMatch(
   revalidatePath(`/admin/torneos/${tournamentId}/partidos`);
   revalidatePath("/torneos");
   return { notice: "Resultado registrado" };
+}
+
+async function resolveClaim(
+  formData: FormData,
+  fn: "confirm_match_claim" | "reject_match_claim",
+  notice: string,
+): Promise<AdminFormState> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc(fn, { p_match_id: String(formData.get("matchId")) });
+  if (error) return { error: error.message };
+
+  const tournamentId = String(formData.get("tournamentId"));
+  revalidatePath(`/admin/torneos/${tournamentId}/partidos`);
+  revalidatePath(`/admin/torneos/${tournamentId}`);
+  revalidatePath("/admin");
+  revalidatePath("/torneos", "layout");
+  return { notice };
+}
+
+/** El ganador reportado por el capitán avanza de ronda. */
+export async function confirmMatchClaim(
+  _prev: AdminFormState,
+  formData: FormData,
+): Promise<AdminFormState> {
+  return resolveClaim(formData, "confirm_match_claim", "Resultado confirmado");
+}
+
+/** Descarta el reporte; los capitanes pueden volver a reportar. */
+export async function rejectMatchClaim(
+  _prev: AdminFormState,
+  formData: FormData,
+): Promise<AdminFormState> {
+  return resolveClaim(formData, "reject_match_claim", "Reporte rechazado");
 }
 
 export async function setRole(

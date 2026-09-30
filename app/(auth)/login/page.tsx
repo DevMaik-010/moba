@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { safeReturnPath } from "@/lib/navigation";
+
 import { signIn } from "../actions";
 import { AuthForm } from "../auth-form";
 
@@ -16,7 +18,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <AuthForm
         action={signIn}
         submitLabel="Entrar"
-        next={typeof next === "string" ? next : undefined}
+        next={safeReturnPath(next)}
       />
 
       <p className="mt-6 text-center text-sm text-ink-dim">

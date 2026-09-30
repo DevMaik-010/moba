@@ -1,18 +1,11 @@
 import Link from "next/link";
 
 import { TournamentBadge } from "@/components/ui/badge";
+import { LocalDate } from "@/components/ui/local-date";
 import { createClient } from "@/lib/supabase/server";
 import type { Tournament } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(value: string | null): string {
-  if (!value) return "Fecha por definir";
-  return new Date(value).toLocaleString("es", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 export default async function TorneosPage() {
   const supabase = await createClient();
@@ -77,7 +70,16 @@ export default async function TorneosPage() {
                   </div>
                   <div>
                     <dt className="text-xs text-ink-faint">Inicio</dt>
-                    <dd className="text-xs text-ink-dim">{formatDate(t.starts_at)}</dd>
+                    <dd className="text-xs text-ink-dim">
+                      {t.starts_at ? (
+                        <LocalDate
+                          iso={t.starts_at}
+                          options={{ dateStyle: "medium", timeStyle: "short" }}
+                        />
+                      ) : (
+                        "Fecha por definir"
+                      )}
+                    </dd>
                   </div>
                 </dl>
               </Link>

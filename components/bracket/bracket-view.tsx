@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { MatchCard } from "@/components/bracket/match-card";
 import { roundLabel } from "@/lib/bracket/bracket";
+import { matchPath } from "@/lib/match-access";
 import { createClient } from "@/lib/supabase/client";
 import type { Match, Team } from "@/lib/db/types";
 
@@ -13,6 +14,8 @@ interface Props {
   initialTeams: Team[];
   /** Resalta al equipo del usuario dentro del cuadro. */
   highlightTeamId?: string | null;
+  /** Con el slug, cada cuadrito abre la sala de su enfrentamiento. */
+  slug?: string;
 }
 
 /**
@@ -41,6 +44,7 @@ export function BracketView({
   initialMatches,
   initialTeams,
   highlightTeamId,
+  slug,
 }: Props) {
   const [matches, setMatches] = useState(initialMatches);
   const [teams, setTeams] = useState(initialTeams);
@@ -124,6 +128,7 @@ export function BracketView({
                       match={match}
                       teams={teamsById}
                       highlightTeamId={highlightTeamId}
+                      href={slug ? matchPath(slug, match.id) : undefined}
                     />
                   </div>
                 ))}
