@@ -2,11 +2,14 @@ import Link from "next/link";
 
 import { signOut } from "@/app/(auth)/actions";
 import { BrandLogo } from "@/components/brand-logo";
+import { accountBlocker, accountState } from "@/lib/account";
 import { getSession } from "@/lib/supabase/server";
 
 export async function SiteNav() {
   const session = await getSession();
   const isAdmin = session?.profile.role === "admin";
+  const state = session ? accountState(session.profile) : null;
+  const blocker = state ? accountBlocker(state) : null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface-0/85 backdrop-blur">
@@ -20,9 +23,22 @@ export async function SiteNav() {
             Torneos
           </Link>
           {session ? (
-            <Link href="/mis-equipos" className="hover:text-ink">
-              Mis equipos
-            </Link>
+            <>
+              <Link href="/mis-equipos" className="hover:text-ink">
+                Mis equipos
+              </Link>
+              <Link href="/perfil" className="relative hover:text-ink">
+                Mi perfil
+                {blocker ? (
+                  <span
+                    className={`absolute -right-2 -top-0.5 size-1.5 rounded-full ${
+                      state === "pending" ? "bg-warn" : "bg-bad"
+                    }`}
+                    aria-label="Tu ID de jugador necesita atención"
+                  />
+                ) : null}
+              </Link>
+            </>
           ) : null}
           {isAdmin ? (
             <Link href="/admin" className="font-medium text-brand hover:brightness-125">
@@ -61,6 +77,20 @@ export async function SiteNav() {
           )}
         </div>
       </nav>
+      {blocker ? (
+        <div
+          className={`border-t px-4 py-2 text-center text-xs ${
+            state === "pending"
+              ? "border-warn/30 bg-warn/10 text-warn"
+              : "border-bad/30 bg-bad/10 text-bad"
+          }`}
+        >
+          {blocker}{" "}
+          <Link href="/perfil" className="font-semibold underline underline-offset-2">
+            Ir a Mi perfil
+          </Link>
+        </div>
+      ) : null}
     </header>
   );
 }

@@ -36,6 +36,19 @@ export type Profile = {
   id: string;
   role: AppRole;
   display_name: string;
+  /** ID de MLBB de la cuenta; null en cuentas anteriores a 0010. */
+  game_user_id: string | null;
+  zone_id: string | null;
+  mlbb_nickname: string | null;
+  /** null = sin ID registrado. Solo valid/manual_ok permiten inscribirse. */
+  mlbb_status: ValidationStatus | null;
+  mlbb_checked_at: string | null;
+  created_at: string;
+};
+
+export type MlbbSignupLookupLogRow = {
+  id: number;
+  ip: string;
   created_at: string;
 };
 
@@ -250,6 +263,7 @@ export type Database = {
       match_rooms: Row<MatchRoom>;
       mlbb_account_cache: Row<MlbbAccountCacheRow>;
       mlbb_lookup_log: Row<MlbbLookupLogRow>;
+      mlbb_signup_lookup_log: Row<MlbbSignupLookupLogRow>;
       audit_log: Row<AuditLogRow>;
     };
     Functions: {
@@ -285,6 +299,18 @@ export type Database = {
           match_slot: number;
           side: MatchSide;
         }[];
+      };
+      set_my_game_account: {
+        Args: { p_game_user_id: string; p_zone_id: string };
+        Returns: ValidationStatus;
+      };
+      resolve_profile_validation: {
+        Args: {
+          p_profile_id: string;
+          p_status: ValidationStatus;
+          p_nickname?: string | null;
+        };
+        Returns: undefined;
       };
       set_saved_team_logo: {
         Args: { p_saved_team_id: string; p_path: string | null };

@@ -31,7 +31,12 @@ function TournamentList({ tournaments }: { tournaments: Tournament[] }) {
 export default async function AdminHome() {
   const supabase = await createClient();
 
-  const [{ data: tournaments }, { count: pending }, { data: claims }] = await Promise.all([
+  const [
+    { data: tournaments },
+    { count: pendingMembers },
+    { data: claims },
+    { count: pendingAccounts },
+  ] = await Promise.all([
     supabase.from("tournaments").select("*").order("created_at", { ascending: false }),
     supabase
       .from("team_members")
@@ -42,7 +47,13 @@ export default async function AdminHome() {
       .select("tournament_id")
       .not("claim_side", "is", null)
       .is("resolved_at", null),
+    supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("mlbb_status", "pending"),
   ]);
+
+  const pending = (pendingMembers ?? 0) + (pendingAccounts ?? 0);
 
   const list = (tournaments ?? []) as Tournament[];
 
@@ -66,7 +77,7 @@ export default async function AdminHome() {
         </Link>
       </div>
 
-      {(pending ?? 0) > 0 ? (
+      {pending > 0 ? (
         <Link
           href="/admin/validaciones"
           className="card block border-warn/40 bg-warn/5 p-4 text-sm"

@@ -38,6 +38,7 @@ export async function proxy(request: NextRequest) {
   const needsSession =
     pathname.startsWith("/admin") ||
     pathname.startsWith("/mis-equipos") ||
+    pathname.startsWith("/perfil") ||
     pathname.includes("/inscribir");
 
   if (!user && needsSession) {

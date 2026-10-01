@@ -1,6 +1,6 @@
 import { setRole } from "@/app/admin/actions";
 import { ActionForm } from "@/components/admin/action-form";
-import { Badge } from "@/components/ui/badge";
+import { Badge, ValidationBadge } from "@/components/ui/badge";
 import { createClient, getSession } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/db/types";
 
@@ -36,6 +36,19 @@ export default async function UsuariosPage() {
             {profile.id === session?.userId ? (
               <span className="text-xs text-ink-faint">tú</span>
             ) : null}
+            {profile.game_user_id ? (
+              <span className="flex items-center gap-2 text-xs">
+                <span className="font-mono text-ink-dim">
+                  {profile.game_user_id} · {profile.zone_id}
+                </span>
+                {profile.mlbb_nickname ? (
+                  <span className="text-ink-dim">{profile.mlbb_nickname}</span>
+                ) : null}
+                {profile.mlbb_status ? <ValidationBadge status={profile.mlbb_status} /> : null}
+              </span>
+            ) : (
+              <span className="text-xs text-ink-faint">sin ID de jugador</span>
+            )}
 
             <span className="ml-auto">
               {profile.id === session?.userId ? null : (

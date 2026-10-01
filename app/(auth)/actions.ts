@@ -1,14 +1,32 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import {
+  isGameAccountTaken,
+  lookupMlbbAccountForSignup,
+  RateLimitError,
+} from "@/lib/mlbb";
+import type { LookupStatus } from "@/lib/mlbb/types";
+import { mlbbIdSchema } from "@/lib/mlbb/types";
 import { safeReturnPath } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export interface AuthFormState {
   error?: string;
+  /** Lo que escribió el usuario (sin la contraseña), para no perderlo en un error. */
+  values?: Record<string, string>;
+}
+
+function keepValues(formData: FormData): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const key of ["email", "displayName", "gameUserId", "zoneId"]) {
+    values[key] = String(formData.get(key) ?? "");
+  }
+  return values;
 }
 
 const credentialsSchema = z.object({
@@ -16,13 +34,25 @@ const credentialsSchema = z.object({
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
 });
 
-const signUpSchema = credentialsSchema.extend({
-  displayName: z
-    .string()
-    .trim()
-    .min(3, "El nombre debe tener al menos 3 caracteres")
-    .max(40, "El nombre es demasiado largo"),
-});
+const signUpSchema = credentialsSchema
+  .extend({
+    displayName: z
+      .string()
+      .trim()
+      .min(3, "El nombre debe tener al menos 3 caracteres")
+      .max(40, "El nombre es demasiado largo"),
+  })
+  .extend(mlbbIdSchema.shape);
+
+/** IP del cliente según el proxy de delante (Vercel, nginx…), para el cupo del verificador. */
+async function clientIp(): Promise<string> {
+  const h = await headers();
+  return (
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    h.get("x-real-ip")?.trim() ||
+    "desconocida"
+  );
+}
 
 export async function signIn(
   _prev: AuthFormState,
@@ -50,20 +80,55 @@ export async function signUp(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const result = await createAccount(formData);
+  return { ...result, values: keepValues(formData) };
+}
+
+async function createAccount(formData: FormData): Promise<AuthFormState> {
   const parsed = signUpSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
     displayName: formData.get("displayName"),
+    gameUserId: formData.get("gameUserId"),
+    zoneId: formData.get("zoneId"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message };
+  }
+
+  const { gameUserId, zoneId } = parsed.data;
+
+  // Se verifica ANTES de crear la cuenta: un ID que no existe no crea cuenta.
+  // Si el verificador no responde, la cuenta se crea y queda en revisión. El
+  // estado definitivo lo pone la base de datos leyendo la caché, nunca esto.
+  let lookupStatus: LookupStatus = "unavailable";
+  try {
+    if (await isGameAccountTaken(gameUserId, zoneId)) {
+      return { error: "Ese ID de jugador ya está registrado en otra cuenta" };
+    }
+    lookupStatus = (await lookupMlbbAccountForSignup(gameUserId, zoneId, await clientIp()))
+      .status;
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      return { error: "Demasiados intentos de registro. Espera un rato." };
+    }
+    console.error("[registro] verificación de ID no disponible:", error);
+  }
+  if (lookupStatus === "invalid") {
+    return { error: "Ese ID de jugador no existe en ese servidor. Revisa los dos números." };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
-    options: { data: { display_name: parsed.data.displayName } },
+    options: {
+      data: {
+        display_name: parsed.data.displayName,
+        game_user_id: gameUserId,
+        zone_id: zoneId,
+      },
+    },
   });
 
   if (error) {
@@ -75,7 +140,10 @@ export async function signUp(
     if (error.code === "over_email_send_rate_limit" || error.status === 429) {
       return { error: "Demasiados intentos. Espera unos minutos." };
     }
-    return { error: "No se pudo crear la cuenta. Si ya tienes una, inicia sesión." };
+    return {
+      error:
+        "No se pudo crear la cuenta. Si ya tienes una, inicia sesión; si tu ID de jugador ya está en otra cuenta, habla con un administrador.",
+    };
   }
 
   // Con confirmación de correo activada en Supabase no hay sesión todavía.
@@ -87,7 +155,8 @@ export async function signUp(
   }
 
   revalidatePath("/", "layout");
-  redirect("/torneos");
+  // Si quedó en revisión, el perfil le explica qué falta.
+  redirect(lookupStatus === "valid" ? "/torneos" : "/perfil");
 }
 
 export async function signOut(): Promise<void> {

@@ -38,6 +38,17 @@ partidos vacíos del cuadro. Cada equipo que se inscribe toma el siguiente cupo 
 cae en su cuadrito: el 1 y el 2 al primer partido, el 3 y el 4 al segundo, y así. Vía
 Supabase Realtime, el cuadrito aparece en la pantalla de todos sin recargar.
 
+**Cuenta con ID de jugador.** Al crear la cuenta se pide el ID de juego y el servidor
+de MLBB, y se verifica antes de crearla: un ID que no existe no crea cuenta, y un ID
+solo puede estar en una cuenta. Si el verificador no responde, la cuenta queda en
+revisión en *Admin → Validaciones*. Mientras tanto (o si no tiene ID, como las cuentas
+anteriores) puede armar equipos pero no inscribirse; lo corrige en *Mi perfil*. El ID
+de la cuenta es independiente del roster de sus equipos.
+
+**Una inscripción activa.** Un capitán solo puede estar inscrito en un torneo abierto,
+cerrado o en juego a la vez; cuando termina, se cancela o su equipo cae, puede
+inscribirse en otro.
+
 **Código de inscripción.** Al inscribirse, cada equipo recibe un código único de 8
 caracteres (`team_access_codes`, solo lo leen su capitán y el admin). El capitán lo ve
 en la página del torneo y en *Mis equipos → Mis inscripciones*, y es el que se pide
@@ -115,6 +126,7 @@ supabase/migrations/0006_match_rooms.sql  sala de cada enfrentamiento: códigos,
 supabase/migrations/0007_revoke_anon_execute.sql  sin sesión no se ejecuta ninguna RPC (salvo get_match_room)
 supabase/migrations/0008_security_hardening.sql   IDs de jugadores y caché de validación privados, validaciones extra
 supabase/migrations/0009_team_codes_logos.sql     código de inscripción por equipo, logos de equipo (bucket team-logos)
+supabase/migrations/0010_account_game_id_one_entry.sql  ID de jugador por cuenta, una sola inscripción activa
 ```
 
 ### 3. Primer administrador

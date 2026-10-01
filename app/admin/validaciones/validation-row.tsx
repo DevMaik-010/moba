@@ -3,7 +3,11 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
-import { resolveValidation, type AdminFormState } from "@/app/admin/actions";
+import {
+  resolveProfileValidation,
+  resolveValidation,
+  type AdminFormState,
+} from "@/app/admin/actions";
 
 function Buttons() {
   const { pending } = useFormStatus();
@@ -32,23 +36,28 @@ function Buttons() {
 }
 
 interface Props {
-  memberId: string;
+  /** Fila de un roster (`member`) o cuenta de usuario (`profile`). */
+  kind?: "member" | "profile";
+  id: string;
   nickname: string | null;
 }
 
-export function ValidationRow({ memberId, nickname }: Props) {
-  const [state, action] = useActionState<AdminFormState, FormData>(resolveValidation, {});
+export function ValidationRow({ kind = "member", id, nickname }: Props) {
+  const [state, action] = useActionState<AdminFormState, FormData>(
+    kind === "profile" ? resolveProfileValidation : resolveValidation,
+    {},
+  );
 
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
-      <input type="hidden" name="memberId" value={memberId} />
+      <input type="hidden" name={kind === "profile" ? "profileId" : "memberId"} value={id} />
 
       <div className="min-w-40">
-        <label className="label" htmlFor={`nick-${memberId}`}>
+        <label className="label" htmlFor={`nick-${id}`}>
           Nick confirmado
         </label>
         <input
-          id={`nick-${memberId}`}
+          id={`nick-${id}`}
           name="nickname"
           className="field"
           defaultValue={nickname ?? ""}

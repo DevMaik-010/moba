@@ -20,6 +20,9 @@ const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /** Techo por usuario para no quemar la IP del servidor contra el proveedor. */
 const RATE_LIMIT = { max: 20, windowMs: 60 * 60 * 1000 };
 
+/** Techo por IP en el registro, donde todavía no hay usuario al que cobrarle. */
+const SIGNUP_RATE_LIMIT = { max: 10, windowMs: 60 * 60 * 1000 };
+
 export class RateLimitError extends Error {
   constructor() {
     super("Demasiadas consultas de ID. Espera un rato antes de seguir.");
@@ -112,19 +115,32 @@ export async function consumeLookupQuota(
   });
 }
 
-/**
- * Busca una cuenta MLBB: caché → proveedores → caché.
- * Solo para uso en servidor; nunca la llames desde el navegador.
- */
-export async function lookupMlbbAccount(
+/** Igual que consumeLookupQuota, pero por IP: para el formulario de registro. */
+async function consumeSignupQuota(ip: string): Promise<void> {
+  const admin = createAdminClient();
+  const since = new Date(Date.now() - SIGNUP_RATE_LIMIT.windowMs).toISOString();
+
+  const { count } = await admin
+    .from("mlbb_signup_lookup_log")
+    .select("id", { count: "exact", head: true })
+    .eq("ip", ip)
+    .gte("created_at", since);
+
+  if ((count ?? 0) >= SIGNUP_RATE_LIMIT.max) throw new RateLimitError();
+
+  await admin.from("mlbb_signup_lookup_log").insert({ ip });
+}
+
+/** caché → (cupo) → proveedores → caché. */
+async function lookup(
   gameUserId: string,
   zoneId: string,
-  profileId: string,
+  consumeQuota: () => Promise<void>,
 ): Promise<MlbbLookupResult> {
   const cached = await readCache(gameUserId, zoneId);
   if (cached) return cached;
 
-  await consumeLookupQuota(profileId, gameUserId, zoneId);
+  await consumeQuota();
 
   let last: MlbbLookupResult = { status: "unavailable", provider: "ninguno" };
 
@@ -136,4 +152,36 @@ export async function lookupMlbbAccount(
 
   await writeCache(gameUserId, zoneId, last);
   return last;
+}
+
+/**
+ * Busca una cuenta MLBB con el cupo del usuario.
+ * Solo para uso en servidor; nunca la llames desde el navegador.
+ */
+export function lookupMlbbAccount(
+  gameUserId: string,
+  zoneId: string,
+  profileId: string,
+): Promise<MlbbLookupResult> {
+  return lookup(gameUserId, zoneId, () => consumeLookupQuota(profileId, gameUserId, zoneId));
+}
+
+/** Busca una cuenta MLBB durante el registro, con el cupo de la IP. */
+export function lookupMlbbAccountForSignup(
+  gameUserId: string,
+  zoneId: string,
+  ip: string,
+): Promise<MlbbLookupResult> {
+  return lookup(gameUserId, zoneId, () => consumeSignupQuota(ip));
+}
+
+/** ¿Ya hay una cuenta con este ID de jugador? (service role: ignora RLS) */
+export async function isGameAccountTaken(gameUserId: string, zoneId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { count } = await admin
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("game_user_id", gameUserId)
+    .eq("zone_id", zoneId);
+  return (count ?? 0) > 0;
 }

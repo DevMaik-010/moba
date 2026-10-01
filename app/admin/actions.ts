@@ -413,3 +413,32 @@ export async function resolveValidation(
   revalidatePath("/admin/validaciones");
   return { notice: "Validación resuelta" };
 }
+
+export async function resolveProfileValidation(
+  _prev: AdminFormState,
+  formData: FormData,
+): Promise<AdminFormState> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  const status = String(formData.get("status")) as ValidationStatus;
+  const nickname = String(formData.get("nickname") ?? "").trim();
+  if (status !== "manual_ok" && status !== "manual_rejected") {
+    return { error: "Resolución inválida" };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("resolve_profile_validation", {
+    p_profile_id: String(formData.get("profileId")),
+    p_status: status,
+    p_nickname: nickname || null,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/validaciones");
+  revalidatePath("/admin/usuarios");
+  return { notice: "Cuenta resuelta" };
+}

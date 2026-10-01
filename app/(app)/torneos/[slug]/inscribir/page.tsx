@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ActionForm } from "@/components/admin/action-form";
 import { ValidationBadge } from "@/components/ui/badge";
 import { TeamLogo } from "@/components/ui/team-logo";
+import { accountBlocker, accountState } from "@/lib/account";
 import { createClient, getSession } from "@/lib/supabase/server";
 import type { SavedTeam, SavedTeamMember, Team, Tournament } from "@/lib/db/types";
 import { registerSavedTeam } from "./actions";
@@ -28,7 +29,8 @@ export default async function InscribirPage({
 
   if (!tournament) notFound();
 
-  const [{ data: entry }, { data: saved }, { count: registered }] = await Promise.all([
+  const [{ data: entry }, { data: saved }, { count: registered }, { data: myEntries }] =
+    await Promise.all([
     supabase
       .from("teams")
       .select("*")
@@ -47,7 +49,29 @@ export default async function InscribirPage({
       .select("id", { count: "exact", head: true })
       .eq("tournament_id", tournament.id)
       .not("seed", "is", null),
+    // Inscripciones vigentes del capitán en otros torneos.
+    supabase
+      .from("teams")
+      .select("*")
+      .eq("captain_id", session.userId)
+      .eq("status", "registered")
+      .neq("tournament_id", tournament.id)
+      .not("seed", "is", null),
   ]);
+
+  const otherIds = ((myEntries ?? []) as Team[]).map((t) => t.tournament_id);
+  const { data: activeElsewhere } =
+    otherIds.length > 0
+      ? await supabase
+          .from("tournaments")
+          .select("*")
+          .in("id", otherIds)
+          .in("status", ["open", "locked", "running"])
+          .limit(1)
+          .maybeSingle<Tournament>()
+      : { data: null };
+
+  const blocker = accountBlocker(accountState(session.profile));
 
   // RLS: solo el capitán lee el código de su inscripción.
   const { data: entryCode } = entry
@@ -106,6 +130,31 @@ export default async function InscribirPage({
                 enfrentamiento del cuadro: compártelo solo con tus jugadores.
               </p>
             </div>
+          ) : null}
+        </div>
+      ) : tournament.status === "open" && !full && (blocker || activeElsewhere) ? (
+        <div className="card space-y-3 p-6">
+          <h2 className="font-semibold">Todavía no puedes inscribirte</h2>
+          {blocker ? (
+            <p className="text-sm text-ink-dim">
+              {blocker}{" "}
+              <Link href="/perfil" className="font-semibold text-brand hover:brightness-125">
+                Ir a Mi perfil
+              </Link>
+            </p>
+          ) : null}
+          {activeElsewhere ? (
+            <p className="text-sm text-ink-dim">
+              Ya tienes una inscripción activa en{" "}
+              <Link
+                href={`/torneos/${activeElsewhere.slug}`}
+                className="font-semibold text-brand hover:brightness-125"
+              >
+                {activeElsewhere.name}
+              </Link>
+              . Solo se puede estar en un torneo a la vez: podrás inscribirte aquí cuando ese
+              termine o tu equipo quede eliminado.
+            </p>
           ) : null}
         </div>
       ) : tournament.status !== "open" || full ? (
