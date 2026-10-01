@@ -63,6 +63,16 @@ export type Team = {
   status: TeamStatus;
   seed: number | null;
   saved_team_id: string | null;
+  /** Ruta en el bucket `team-logos`, copiada del equipo guardado. */
+  logo_path: string | null;
+  created_at: string;
+};
+
+/** Código de inscripción del equipo: lo leen su capitán y el admin. */
+export type TeamAccessCode = {
+  team_id: string;
+  tournament_id: string;
+  code: string;
   created_at: string;
 };
 
@@ -74,6 +84,7 @@ export type SavedTeam = {
   tag: string;
   mode: TournamentMode;
   team_size: number;
+  logo_path: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -121,7 +132,8 @@ export type Match = {
   updated_at: string;
 };
 
-/** Fila de `match_rooms`. Solo la lee el admin; el resto pasa por get_match_room. */
+/** Fila de `match_rooms`. Solo la lee el admin; el resto pasa por get_match_room.
+ * `code_a` / `code_b` ya no dan acceso: manda el código de inscripción (0009). */
 export type MatchRoom = {
   match_id: string;
   tournament_id: string;
@@ -160,14 +172,12 @@ export type MatchRoomView = {
     mode: TournamentMode;
     rounds: number;
   };
-  team_a: { id: string; name: string; tag: string } | null;
-  team_b: { id: string; name: string; tag: string } | null;
+  team_a: MatchRoomTeam | null;
+  team_b: MatchRoomTeam | null;
   has_room: boolean;
   viewer: MatchSide | "admin" | null;
   /** Lado que capitanea el usuario con sesión, si juega este partido. */
   captain_side: MatchSide | null;
-  /** Código del capitán con sesión, para que lo comparta con su equipo. */
-  my_code: string | null;
   room: {
     room_id: string | null;
     room_posted_at: string | null;
@@ -178,10 +188,13 @@ export type MatchRoomView = {
     disputed_at: string | null;
     dispute_note: string | null;
     resolved_at: string | null;
+    /** Códigos de inscripción de cada equipo; solo los ve el admin. */
     code_a: string | null;
     code_b: string | null;
   } | null;
 };
+
+type MatchRoomTeam = { id: string; name: string; tag: string; logo_path: string | null };
 
 export type MlbbLookupLogRow = {
   id: number;
@@ -230,6 +243,7 @@ export type Database = {
       tournaments: Row<Tournament>;
       teams: Row<Team>;
       team_members: Row<TeamMember>;
+      team_access_codes: Row<TeamAccessCode>;
       saved_teams: Row<SavedTeam>;
       saved_team_members: Row<SavedTeamMember>;
       matches: Row<Match>;
@@ -271,6 +285,10 @@ export type Database = {
           match_slot: number;
           side: MatchSide;
         }[];
+      };
+      set_saved_team_logo: {
+        Args: { p_saved_team_id: string; p_path: string | null };
+        Returns: string | null;
       };
       set_tournament_archived: {
         Args: { p_tournament_id: string; p_archived: boolean };

@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { matchCodeCookie, matchPath } from "@/lib/match-access";
+import {
+  matchPath,
+  normalizeTeamCode,
+  TEAM_CODE_PATTERN,
+  teamCodeCookie,
+} from "@/lib/match-access";
 import { createClient, getSession } from "@/lib/supabase/server";
 
 export interface MatchFormState {
@@ -20,15 +25,18 @@ function readTarget(formData: FormData) {
   };
 }
 
-/** Verifica el código contra la base y, si abre la sala, lo guarda en una cookie. */
+/**
+ * Verifica el código de inscripción contra la base y, si abre la sala, lo
+ * guarda en una cookie del torneo para los próximos enfrentamientos del equipo.
+ */
 export async function enterMatch(
   _prev: MatchFormState,
   formData: FormData,
 ): Promise<MatchFormState> {
   const { matchId } = readTarget(formData);
-  const code = String(formData.get("code") ?? "").trim().toUpperCase();
-  if (!/^[0-9A-F]{8}$/.test(code)) {
-    return { error: "El código tiene 8 caracteres (números y letras de la A a la F)" };
+  const code = normalizeTeamCode(formData.get("code"));
+  if (!TEAM_CODE_PATTERN.test(code)) {
+    return { error: "El código de inscripción tiene 8 letras y números" };
   }
 
   const supabase = await createClient();
@@ -37,10 +45,12 @@ export async function enterMatch(
     p_code: code,
   });
   if (error || !data) return { error: "Partido inexistente" };
-  if (!data.viewer) return { error: "Código incorrecto" };
+  if (!data.viewer) {
+    return { error: "Ese código no corresponde a ninguno de los equipos de este enfrentamiento" };
+  }
 
   const cookieStore = await cookies();
-  cookieStore.set(matchCodeCookie(matchId), code, {
+  cookieStore.set(teamCodeCookie(data.tournament.slug), code, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

@@ -67,37 +67,27 @@ function MatchForm({
   );
 }
 
-/**
- * Pide el código de acceso. Con `presetCode` (el capitán que ya conoce el suyo)
- * se reduce a un botón.
- */
-export function CodeForm({ presetCode, ...target }: Target & { presetCode?: string }) {
-  if (presetCode) {
-    return (
-      <MatchForm action={enterMatch} target={target} className="space-y-2">
-        <input type="hidden" name="code" value={presetCode} />
-        <Submit label="Entrar al enfrentamiento" />
-      </MatchForm>
-    );
-  }
-
+/** Pide el código de inscripción del equipo para entrar a la sala. */
+export function CodeForm(target: Target) {
   return (
     <MatchForm action={enterMatch} target={target}>
       <div>
         <label className="label" htmlFor="code">
-          Código de acceso
+          Código de inscripción
         </label>
         <input
           id="code"
           name="code"
           className="field font-mono uppercase tracking-[0.3em]"
-          placeholder="A1B2C3D4"
+          placeholder="ABCD2345"
           autoComplete="off"
-          maxLength={8}
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={12}
           required
         />
       </div>
-      <Submit label="Entrar" />
+      <Submit label="Entrar al enfrentamiento" />
     </MatchForm>
   );
 }

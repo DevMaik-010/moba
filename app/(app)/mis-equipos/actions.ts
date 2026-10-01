@@ -9,6 +9,7 @@ import { mlbbIdSchema } from "@/lib/mlbb/types";
 import { safeReturnPath } from "@/lib/navigation";
 import { createClient, getSession } from "@/lib/supabase/server";
 import { TEAM_SIZE_BY_MODE } from "@/lib/db/types";
+import { TEAM_LOGO_BUCKET } from "@/lib/team-logo";
 
 export interface SavedTeamFormState {
   error?: string;
@@ -112,4 +113,44 @@ export async function deleteSavedTeam(
 
   revalidatePath("/mis-equipos");
   return { notice: "Equipo eliminado" };
+}
+
+/**
+ * Fija (o quita, con `path` vacío) el logo de un equipo guardado. El archivo ya
+ * lo subió el navegador al bucket, dentro de la carpeta del usuario; la RPC
+ * comprueba dueño y carpeta, y propaga el logo a las inscripciones vivas.
+ */
+export async function setSavedTeamLogo(
+  savedTeamId: string,
+  path: string | null,
+): Promise<SavedTeamFormState> {
+  const session = await getSession();
+  if (!session) return { error: "Necesitas iniciar sesión" };
+
+  const supabase = await createClient();
+  const { data: previous, error } = await supabase.rpc("set_saved_team_logo", {
+    p_saved_team_id: savedTeamId,
+    p_path: path,
+  });
+
+  if (error) {
+    // El archivo recién subido quedaría huérfano.
+    if (path) await supabase.storage.from(TEAM_LOGO_BUCKET).remove([path]);
+    return { error: error.message };
+  }
+
+  // El logo anterior puede seguir mostrándose en torneos ya cerrados: solo se
+  // borra si ninguna inscripción lo usa.
+  if (previous && previous !== path) {
+    const { count } = await supabase
+      .from("teams")
+      .select("id", { count: "exact", head: true })
+      .eq("logo_path", previous);
+    if (!count) await supabase.storage.from(TEAM_LOGO_BUCKET).remove([previous]);
+  }
+
+  revalidatePath("/mis-equipos");
+  revalidatePath(`/mis-equipos/${savedTeamId}`);
+  revalidatePath("/torneos", "layout");
+  return { notice: path ? "Logo actualizado" : "Logo eliminado" };
 }

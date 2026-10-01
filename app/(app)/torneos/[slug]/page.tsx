@@ -5,11 +5,13 @@ import { notFound } from "next/navigation";
 import { BracketView } from "@/components/bracket/bracket-view";
 import { TournamentBadge } from "@/components/ui/badge";
 import { LocalDate } from "@/components/ui/local-date";
+import { TeamLogo } from "@/components/ui/team-logo";
 import { roundLabel } from "@/lib/bracket/bracket";
+import { matchPath } from "@/lib/match-access";
 import { createClient, getSession } from "@/lib/supabase/server";
 import { TEAM_SIZE_BY_MODE } from "@/lib/db/types";
 import type { Match, Team, Tournament } from "@/lib/db/types";
-import { CodeForm } from "./partido/[matchId]/match-forms";
+import { CopyButton } from "./partido/[matchId]/match-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +59,7 @@ export default async function TorneoPage({ params }: PageProps<"/torneos/[slug]"
 
   const canRegister = tournament.status === "open" && registered.length < tournament.bracket_size;
 
-  // El enfrentamiento en curso del capitán: su código y quién crea la sala.
+  // El enfrentamiento en curso del capitán y quién crea la sala.
   const allMatches = (matches ?? []) as Match[];
   const myMatch =
     myTeam && (tournament.status === "locked" || tournament.status === "running")
@@ -67,9 +69,22 @@ export default async function TorneoPage({ params }: PageProps<"/torneos/[slug]"
             (m.status === "ready" || m.status === "live"),
         )
       : undefined;
-  const myRoom = myMatch
-    ? (await supabase.rpc("get_match_room", { p_match_id: myMatch.id, p_code: null })).data
-    : null;
+  const [myRoom, myCode] = await Promise.all([
+    myMatch
+      ? supabase
+          .rpc("get_match_room", { p_match_id: myMatch.id, p_code: null })
+          .then(({ data }) => data)
+      : null,
+    // RLS: solo el capitán (o el admin) lee el código de su equipo.
+    myTeam
+      ? supabase
+          .from("team_access_codes")
+          .select("code")
+          .eq("team_id", myTeam.id)
+          .maybeSingle<{ code: string }>()
+          .then(({ data }) => data?.code ?? null)
+      : null,
+  ]);
   const totalRounds = allMatches.reduce((max, m) => Math.max(max, m.round), 0);
 
   return (
@@ -105,28 +120,55 @@ export default async function TorneoPage({ params }: PageProps<"/torneos/[slug]"
         ) : null}
       </header>
 
-      {myMatch && myRoom?.my_code ? (
+      {myTeam ? (
         <section className="card flex flex-wrap items-center gap-4 border-brand/50 bg-brand/5 p-5">
+          <TeamLogo name={myTeam.name} tag={myTeam.tag} path={myTeam.logo_path} size={48} />
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-brand">
-              Tu enfrentamiento · {roundLabel(myMatch.round, totalRounds)}
-            </p>
-            <p className="font-semibold">
-              vs{" "}
-              {(myRoom.captain_side === "a" ? myRoom.team_b : myRoom.team_a)?.name ??
-                "Por definir"}
-            </p>
-            <p className="text-sm text-ink-dim">
-              {myRoom.match.host_side === myRoom.captain_side
-                ? "Tu equipo crea la sala en MLBB y publica el ID."
-                : "El rival crea la sala; verás el ID al entrar."}{" "}
-              Tu código:{" "}
-              <span className="font-mono font-semibold tracking-widest text-ink">
-                {myRoom.my_code}
-              </span>
+            {myMatch && myRoom ? (
+              <>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-brand">
+                  Tu enfrentamiento · {roundLabel(myMatch.round, totalRounds)}
+                </p>
+                <p className="font-semibold">
+                  {myTeam.name} vs{" "}
+                  {(myRoom.captain_side === "a" ? myRoom.team_b : myRoom.team_a)?.name ??
+                    "Por definir"}
+                </p>
+                <p className="text-sm text-ink-dim">
+                  {myRoom.match.host_side === myRoom.captain_side
+                    ? "Tu equipo crea la sala en MLBB y publica el ID."
+                    : "El rival crea la sala; verás el ID al entrar."}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-brand">
+                  Inscrito · cupo #{myTeam.seed}
+                </p>
+                <p className="font-semibold">{myTeam.name}</p>
+              </>
+            )}
+            {myCode ? (
+              <p className="flex flex-wrap items-center gap-2 text-sm text-ink-dim">
+                Código de inscripción:
+                <span className="font-mono text-base font-semibold tracking-[0.25em] text-ink">
+                  {myCode}
+                </span>
+                <CopyButton value={myCode} />
+              </p>
+            ) : null}
+            <p className="text-xs text-ink-faint">
+              Te lo pediremos para entrar a cada enfrentamiento. Compártelo solo con tu equipo.
             </p>
           </div>
-          <CodeForm matchId={myMatch.id} slug={tournament.slug} presetCode={myRoom.my_code} />
+          {myMatch ? (
+            <Link
+              href={matchPath(tournament.slug, myMatch.id)}
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+            >
+              Ir al enfrentamiento
+            </Link>
+          ) : null}
         </section>
       ) : null}
 
@@ -188,6 +230,7 @@ export default async function TorneoPage({ params }: PageProps<"/torneos/[slug]"
                 }`}
               >
                 <span className="font-mono text-xs text-ink-faint">#{team.seed}</span>
+                <TeamLogo name={team.name} tag={team.tag} path={team.logo_path} size={28} />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">
                   {team.name}
                 </span>

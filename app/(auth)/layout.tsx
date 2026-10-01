@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { BrandLogo } from "@/components/brand-logo";
+
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 py-12">
@@ -8,7 +10,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         href="/torneos"
         className="mb-8 text-lg font-bold tracking-tight text-ink hover:text-brand"
       >
-        Sistemas<span className="text-brand">MLBB</span>
+        <BrandLogo size={40} />
       </Link>
       <div className="card w-full max-w-sm p-6">{children}</div>
     </div>

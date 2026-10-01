@@ -38,12 +38,22 @@ partidos vacíos del cuadro. Cada equipo que se inscribe toma el siguiente cupo 
 cae en su cuadrito: el 1 y el 2 al primer partido, el 3 y el 4 al segundo, y así. Vía
 Supabase Realtime, el cuadrito aparece en la pantalla de todos sin recargar.
 
-**Cada enfrentamiento.** Cuando un partido tiene a sus dos equipos se generan dos
-códigos de acceso (uno por equipo) y se sortea qué capitán crea la sala en MLBB; el
-cuadro lo marca con *Sala*. Desde el cuadro se entra con el código, el capitán sorteado
+**Código de inscripción.** Al inscribirse, cada equipo recibe un código único de 8
+caracteres (`team_access_codes`, solo lo leen su capitán y el admin). El capitán lo ve
+en la página del torneo y en *Mis equipos → Mis inscripciones*, y es el que se pide
+para entrar a cualquier enfrentamiento de su equipo; una vez ingresado queda en una
+cookie del torneo.
+
+**Logos.** Cada equipo guardado puede tener un logo (bucket público `team-logos`, se
+sube desde *Editar* y se reduce a 256×256 WebP en el navegador). Al inscribirse se
+copia al torneo y se muestra en el cuadro y en la sala del enfrentamiento.
+
+**Cada enfrentamiento.** Cuando un partido tiene a sus dos equipos se sortea qué
+capitán crea la sala en MLBB; el cuadro lo marca con *Sala*. Desde el cuadro se entra
+con el código de inscripción, el capitán sorteado
 publica el ID de sala y el rival lo ve al instante. Al terminar, el capitán ganador
 reporta la victoria (el rival puede disputarla) y el admin la confirma en
-*Partidos y resultados*: recién ahí el ganador pasa de ronda. Códigos e ID de sala viven
+*Partidos y resultados*: recién ahí el ganador pasa de ronda. ID de sala y reportes viven
 en `match_rooms`, que no es legible desde el cliente; todo pasa por `get_match_room`.
 
 **Byes.** Si se inscriben menos equipos que cupos (5 en un cuadro de 8, por ejemplo),
@@ -104,6 +114,7 @@ supabase/migrations/0005_saved_teams_archive_autolock.sql  equipos reutilizables
 supabase/migrations/0006_match_rooms.sql  sala de cada enfrentamiento: códigos, ID de sala, reporte y verificación
 supabase/migrations/0007_revoke_anon_execute.sql  sin sesión no se ejecuta ninguna RPC (salvo get_match_room)
 supabase/migrations/0008_security_hardening.sql   IDs de jugadores y caché de validación privados, validaciones extra
+supabase/migrations/0009_team_codes_logos.sql     código de inscripción por equipo, logos de equipo (bucket team-logos)
 ```
 
 ### 3. Primer administrador

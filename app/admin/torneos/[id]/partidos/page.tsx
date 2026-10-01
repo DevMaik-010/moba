@@ -7,7 +7,7 @@ import { Badge, MatchBadge } from "@/components/ui/badge";
 import { roundLabel } from "@/lib/bracket/bracket";
 import { createClient } from "@/lib/supabase/server";
 import { matchPath } from "@/lib/match-access";
-import type { Match, MatchRoom, Team, Tournament } from "@/lib/db/types";
+import type { Match, MatchRoom, Team, TeamAccessCode, Tournament } from "@/lib/db/types";
 import { ReportForm } from "./report-form";
 
 export const dynamic = "force-dynamic";
@@ -26,11 +26,18 @@ export default async function PartidosPage({
 
   if (!tournament) notFound();
 
-  const [{ data: matches }, { data: teams }, { data: rooms }] = await Promise.all([
-    supabase.from("matches").select("*").eq("tournament_id", id).order("round").order("slot"),
-    supabase.from("teams").select("*").eq("tournament_id", id),
-    supabase.from("match_rooms").select("*").eq("tournament_id", id),
-  ]);
+  const [{ data: matches }, { data: teams }, { data: rooms }, { data: codes }] =
+    await Promise.all([
+      supabase.from("matches").select("*").eq("tournament_id", id).order("round").order("slot"),
+      supabase.from("teams").select("*").eq("tournament_id", id),
+      supabase.from("match_rooms").select("*").eq("tournament_id", id),
+      supabase.from("team_access_codes").select("*").eq("tournament_id", id),
+    ]);
+
+  const codeByTeam = new Map(
+    ((codes ?? []) as TeamAccessCode[]).map((c) => [c.team_id, c.code]),
+  );
+  const code = (teamId: string | null) => (teamId ? codeByTeam.get(teamId) : null) ?? "—";
 
   const roomByMatch = new Map(((rooms ?? []) as MatchRoom[]).map((r) => [r.match_id, r]));
   const openClaims = ((rooms ?? []) as MatchRoom[]).filter(
@@ -139,11 +146,11 @@ export default async function PartidosPage({
                       <dl className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-dim">
                         <div>
                           <dt className="inline text-ink-faint">Código {name(match.team_a_id)}: </dt>
-                          <dd className="inline font-mono">{room.code_a}</dd>
+                          <dd className="inline font-mono">{code(match.team_a_id)}</dd>
                         </div>
                         <div>
                           <dt className="inline text-ink-faint">Código {name(match.team_b_id)}: </dt>
-                          <dd className="inline font-mono">{room.code_b}</dd>
+                          <dd className="inline font-mono">{code(match.team_b_id)}</dd>
                         </div>
                         <div>
                           <dt className="inline text-ink-faint">Crea la sala: </dt>

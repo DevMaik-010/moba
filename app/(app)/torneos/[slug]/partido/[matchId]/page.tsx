@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 
 import { MatchBadge } from "@/components/ui/badge";
 import { roundLabel } from "@/lib/bracket/bracket";
-import { matchCodeCookie } from "@/lib/match-access";
+import { TeamLogo } from "@/components/ui/team-logo";
+import { teamCodeCookie } from "@/lib/match-access";
 import { createClient } from "@/lib/supabase/server";
 import type { MatchSide, MatchRoomView } from "@/lib/db/types";
 import {
@@ -30,7 +31,12 @@ function TeamName({
   const isHost = view.match.host_side === side;
   const isMine = view.captain_side === side || view.viewer === side;
   return (
-    <div className={`flex-1 text-center ${side === "a" ? "sm:text-right" : "sm:text-left"}`}>
+    <div
+      className={`flex flex-1 flex-col items-center gap-2 text-center ${
+        side === "a" ? "sm:items-end sm:text-right" : "sm:items-start sm:text-left"
+      }`}
+    >
+      <TeamLogo name={team?.name} tag={team?.tag} path={team?.logo_path} size={64} className="rounded-xl" />
       <p className={`text-lg font-semibold ${isMine ? "text-brand" : ""}`}>
         {team?.name ?? "Por definir"}
       </p>
@@ -46,7 +52,7 @@ export default async function PartidoPage({
   params,
 }: PageProps<"/torneos/[slug]/partido/[matchId]">) {
   const { slug, matchId } = await params;
-  const code = (await cookies()).get(matchCodeCookie(matchId))?.value ?? null;
+  const code = (await cookies()).get(teamCodeCookie(slug))?.value ?? null;
 
   const supabase = await createClient();
   const { data: view } = await supabase.rpc("get_match_room", {
@@ -103,20 +109,21 @@ export default async function PartidoPage({
           <div>
             <h2 className="font-semibold">Ingresa a la sala del enfrentamiento</h2>
             <p className="mt-1 text-sm text-ink-dim">
-              Cada equipo tiene su propio código. Pídeselo a tu capitán.
+              Usa el código que recibió tu equipo al inscribirse. Pídeselo a tu capitán.
             </p>
           </div>
-          {view.my_code ? (
-            <div className="space-y-3 rounded-lg border border-brand/40 bg-brand/5 p-4">
-              <p className="text-sm">
-                Eres el capitán. Tu código es{" "}
-                <span className="font-mono font-semibold tracking-widest">{view.my_code}</span>
-              </p>
-              <CodeForm {...target} presetCode={view.my_code} />
-            </div>
-          ) : (
-            <CodeForm {...target} />
-          )}
+          {view.captain_side ? (
+            <p className="rounded-lg border border-brand/40 bg-brand/5 px-4 py-3 text-sm">
+              Eres el capitán de{" "}
+              <span className="font-semibold">{teamOf(view.captain_side)?.name}</span>. Tu
+              código está en{" "}
+              <Link href="/mis-equipos" className="text-brand hover:brightness-125">
+                Mis equipos → Mis inscripciones
+              </Link>
+              .
+            </p>
+          ) : null}
+          <CodeForm {...target} />
         </section>
       ) : (
         <>
@@ -209,15 +216,6 @@ export default async function PartidoPage({
             )}
           </section>
 
-          {view.my_code ? (
-            <p className="text-sm text-ink-dim">
-              Código de tu equipo:{" "}
-              <span className="font-mono font-semibold tracking-widest text-ink">
-                {view.my_code}
-              </span>{" "}
-              — compártelo con tus jugadores para que vean la sala.
-            </p>
-          ) : null}
 
           {view.viewer === "admin" && room ? (
             <p className="text-xs text-ink-faint">

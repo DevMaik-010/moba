@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ActionForm } from "@/components/admin/action-form";
 import { ValidationBadge } from "@/components/ui/badge";
+import { TeamLogo } from "@/components/ui/team-logo";
 import { createClient, getSession } from "@/lib/supabase/server";
 import type { SavedTeam, SavedTeamMember, Team, Tournament } from "@/lib/db/types";
 import { registerSavedTeam } from "./actions";
@@ -48,6 +49,15 @@ export default async function InscribirPage({
       .not("seed", "is", null),
   ]);
 
+  // RLS: solo el capitán lee el código de su inscripción.
+  const { data: entryCode } = entry
+    ? await supabase
+        .from("team_access_codes")
+        .select("code")
+        .eq("team_id", entry.id)
+        .maybeSingle<{ code: string }>()
+    : { data: null };
+
   const teams = (saved ?? []) as SavedTeam[];
   const { data: members } =
     teams.length > 0
@@ -83,6 +93,20 @@ export default async function InscribirPage({
             Tienes el cupo #{entry.seed}. El roster quedó congelado al inscribirte; si
             necesitas un cambio, háblalo con el administrador del torneo.
           </p>
+          {entryCode ? (
+            <div className="mt-4 rounded-lg border border-brand/40 bg-brand/5 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-brand">
+                Código de inscripción
+              </p>
+              <p className="mt-1 font-mono text-2xl font-semibold tracking-[0.3em]">
+                {entryCode.code}
+              </p>
+              <p className="mt-2 text-sm text-ink-dim">
+                Es único de tu equipo en este torneo. Te lo pediremos para entrar a cada
+                enfrentamiento del cuadro: compártelo solo con tus jugadores.
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : tournament.status !== "open" || full ? (
         <div className="card p-6 text-sm text-ink-dim">
@@ -109,6 +133,7 @@ export default async function InscribirPage({
                 return (
                   <li key={team.id} className="card space-y-4 p-5">
                     <div className="flex flex-wrap items-center gap-2">
+                      <TeamLogo name={team.name} tag={team.tag} path={team.logo_path} size={32} />
                       <h2 className="font-semibold">{team.name}</h2>
                       {team.tag ? (
                         <span className="font-mono text-xs text-ink-faint">[{team.tag}]</span>

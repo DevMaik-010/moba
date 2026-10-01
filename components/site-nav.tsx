@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { signOut } from "@/app/(auth)/actions";
+import { BrandLogo } from "@/components/brand-logo";
 import { getSession } from "@/lib/supabase/server";
 
 export async function SiteNav() {
@@ -11,7 +12,7 @@ export async function SiteNav() {
     <header className="sticky top-0 z-30 border-b border-line bg-surface-0/85 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
         <Link href="/torneos" className="text-base font-bold tracking-tight">
-          Sistemas<span className="text-brand">MLBB</span>
+          <BrandLogo />
         </Link>
 
         <div className="flex items-center gap-4 text-sm text-ink-dim">

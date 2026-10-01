@@ -3,8 +3,15 @@ import { redirect } from "next/navigation";
 
 import { ActionForm } from "@/components/admin/action-form";
 import { Badge, TournamentBadge, ValidationBadge } from "@/components/ui/badge";
+import { TeamLogo } from "@/components/ui/team-logo";
 import { createClient, getSession } from "@/lib/supabase/server";
-import type { SavedTeam, SavedTeamMember, Team, Tournament } from "@/lib/db/types";
+import type {
+  SavedTeam,
+  SavedTeamMember,
+  Team,
+  TeamAccessCode,
+  Tournament,
+} from "@/lib/db/types";
 import { deleteSavedTeam } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +39,7 @@ export default async function MisEquiposPage() {
   const myTeams = (saved ?? []) as SavedTeam[];
   const myEntries = (entries ?? []) as Team[];
 
-  const [{ data: members }, { data: tournaments }] = await Promise.all([
+  const [{ data: members }, { data: tournaments }, { data: codes }] = await Promise.all([
     myTeams.length > 0
       ? supabase
           .from("saved_team_members")
@@ -46,7 +53,17 @@ export default async function MisEquiposPage() {
           .select("*")
           .in("id", myEntries.map((t) => t.tournament_id))
       : Promise.resolve({ data: [] }),
+    myEntries.length > 0
+      ? supabase
+          .from("team_access_codes")
+          .select("*")
+          .in("team_id", myEntries.map((t) => t.id))
+      : Promise.resolve({ data: [] }),
   ]);
+
+  const codeByTeam = new Map(
+    ((codes ?? []) as TeamAccessCode[]).map((c) => [c.team_id, c.code]),
+  );
 
   const tournamentById = new Map(
     ((tournaments ?? []) as Tournament[]).map((t) => [t.id, t]),
@@ -90,6 +107,7 @@ export default async function MisEquiposPage() {
               return (
                 <li key={team.id} className="card flex flex-col p-5">
                   <div className="flex flex-wrap items-center gap-2">
+                    <TeamLogo name={team.name} tag={team.tag} path={team.logo_path} size={36} />
                     <h2 className="font-semibold">{team.name}</h2>
                     {team.tag ? (
                       <span className="font-mono text-xs text-ink-faint">[{team.tag}]</span>
@@ -126,7 +144,7 @@ export default async function MisEquiposPage() {
                       href={`/mis-equipos/${team.id}`}
                       className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold text-ink-dim transition hover:border-brand hover:text-ink"
                     >
-                      Editar
+                      {team.logo_path ? "Editar" : "Editar · subir logo"}
                     </Link>
                     <ActionForm
                       action={deleteSavedTeam}
@@ -162,6 +180,11 @@ export default async function MisEquiposPage() {
                     <span className="font-mono text-xs text-ink-faint">
                       cupo #{entry.seed}
                     </span>
+                    {codeByTeam.get(entry.id) ? (
+                      <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-xs tracking-widest text-ink">
+                        Código {codeByTeam.get(entry.id)}
+                      </span>
+                    ) : null}
                     <span className="ml-auto flex items-center gap-2">
                       {entry.status === "eliminated" ? (
                         <Badge tone="bad">Eliminado</Badge>

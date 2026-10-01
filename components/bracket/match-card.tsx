@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { TeamLogo } from "@/components/ui/team-logo";
 import type { Match, Team } from "@/lib/db/types";
 
 interface Props {
@@ -35,6 +36,7 @@ function Side({ team, score, isWinner, isLoser, highlighted, showScore, isHost }
       <span className="w-5 shrink-0 font-mono text-[11px] text-ink-faint">
         {team?.seed ?? "—"}
       </span>
+      <TeamLogo name={team?.name} tag={team?.tag} path={team?.logo_path} size={22} />
       <span className="min-w-0 flex-1 truncate">{team?.name ?? "Por definir"}</span>
       {isHost ? (
         <span

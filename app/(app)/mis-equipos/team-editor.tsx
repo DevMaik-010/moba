@@ -302,6 +302,12 @@ export function TeamEditor({ team, members = [], defaultMode = "5v5", returnTo }
         </p>
       ) : null}
 
+      {!team ? (
+        <p className="text-xs text-ink-faint">
+          Después de crearlo podrás subir el logo del equipo desde “Editar”.
+        </p>
+      ) : null}
+
       <SubmitButton label={team ? "Guardar cambios" : "Crear equipo"} />
     </form>
   );

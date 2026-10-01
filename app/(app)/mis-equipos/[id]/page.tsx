@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { safeReturnPath } from "@/lib/navigation";
 import { createClient, getSession } from "@/lib/supabase/server";
 import type { SavedTeam, SavedTeamMember } from "@/lib/db/types";
+import { LogoUploader } from "../logo-uploader";
 import { TeamEditor } from "../team-editor";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,13 @@ export default async function EditarEquipoPage({
         </Link>
         <h1 className="mt-2 text-2xl font-bold tracking-tight">Editar {team.name}</h1>
       </div>
+      <LogoUploader
+        savedTeamId={team.id}
+        ownerId={session.userId}
+        name={team.name}
+        tag={team.tag}
+        logoPath={team.logo_path}
+      />
       <TeamEditor
         team={team}
         members={(members ?? []) as SavedTeamMember[]}
