@@ -50,6 +50,13 @@ registro no pide nombre: la cuenta se muestra con su nick de MLBB al verificarse
 de la cuenta; solo se cargan los demás integrantes (4 en 5v5, 2 en 3v3, ninguno en
 1v1). El logo es opcional y se puede elegir al crear el equipo.
 
+**Reintentar la verificación.** Si el verificador no respondió, el dueño del equipo
+tiene un botón *Reintentar verificación* en *Mis equipos* y en la inscripción. En
+*Admin → Validaciones*, cada ID pendiente se puede *Revalidar con el sistema* antes de
+aprobarlo o rechazarlo a mano. El veredicto nuevo se aplica a todas las filas
+pendientes con ese ID (rosters, inscripciones y cuentas), nunca pisa una decisión
+manual.
+
 **Una inscripción activa.** Un capitán solo puede estar inscrito en un torneo abierto,
 cerrado o en juego a la vez; cuando termina, se cancela o su equipo cae, puede
 inscribirse en otro.
@@ -133,6 +140,7 @@ supabase/migrations/0008_security_hardening.sql   IDs de jugadores y caché de v
 supabase/migrations/0009_team_codes_logos.sql     código de inscripción por equipo, logos de equipo (bucket team-logos)
 supabase/migrations/0010_account_game_id_one_entry.sql  ID de jugador por cuenta, una sola inscripción activa
 supabase/migrations/0011_nickname_captain_is_owner.sql  nick como nombre visible, capitán = dueño de la cuenta
+supabase/migrations/0012_revalidate_ids.sql       reintentar la verificación automática (dueño y admin)
 ```
 
 ### 3. Primer administrador

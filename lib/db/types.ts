@@ -300,6 +300,14 @@ export type Database = {
           side: MatchSide;
         }[];
       };
+      refresh_saved_team_validation: {
+        Args: { p_saved_team_id: string };
+        Returns: number;
+      };
+      revalidate_game_account: {
+        Args: { p_game_user_id: string; p_zone_id: string };
+        Returns: ValidationStatus;
+      };
       set_my_game_account: {
         Args: { p_game_user_id: string; p_zone_id: string };
         Returns: ValidationStatus;

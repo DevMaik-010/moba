@@ -187,3 +187,51 @@ export async function setSavedTeamLogo(
   revalidatePath("/torneos", "layout");
   return { notice: path ? "Logo actualizado" : "Logo eliminado" };
 }
+
+/**
+ * Reintenta la verificación automática de los IDs pendientes de un equipo
+ * guardado (proveedor caído la primera vez). El veredicto queda en la caché y
+ * la RPC lo copia al roster.
+ */
+export async function retrySavedTeamValidation(
+  _prev: SavedTeamFormState,
+  formData: FormData,
+): Promise<SavedTeamFormState> {
+  const session = await getSession();
+  if (!session) return { error: "Necesitas iniciar sesión" };
+
+  const savedTeamId = String(formData.get("savedTeamId") ?? "");
+  const supabase = await createClient();
+
+  // RLS: solo devuelve filas de equipos propios.
+  const { data: pending } = await supabase
+    .from("saved_team_members")
+    .select("game_user_id, zone_id")
+    .eq("saved_team_id", savedTeamId)
+    .eq("validation_status", "pending");
+
+  if (!pending || pending.length === 0) return { notice: "No hay IDs pendientes" };
+
+  for (const member of pending) {
+    try {
+      await lookupMlbbAccount(member.game_user_id, member.zone_id, session.userId);
+    } catch (error) {
+      if (error instanceof RateLimitError) return { error: error.message };
+      console.error("[mis-equipos] reintento de validación falló:", error);
+    }
+  }
+
+  const { data: left, error } = await supabase.rpc("refresh_saved_team_validation", {
+    p_saved_team_id: savedTeamId,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/mis-equipos");
+  revalidatePath("/torneos", "layout");
+  const resolved = pending.length - (left ?? 0);
+  return left
+    ? {
+        notice: `${resolved} de ${pending.length} resueltos. El verificador sigue sin responder para ${left}: un admin los revisará.`,
+      }
+    : { notice: "Listo: todos los IDs tienen veredicto" };
+}

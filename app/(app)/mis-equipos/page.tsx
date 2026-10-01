@@ -12,7 +12,7 @@ import type {
   TeamAccessCode,
   Tournament,
 } from "@/lib/db/types";
-import { deleteSavedTeam } from "./actions";
+import { deleteSavedTeam, retrySavedTeamValidation } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +103,7 @@ export default async function MisEquiposPage() {
               const roster = ((members ?? []) as SavedTeamMember[]).filter(
                 (m) => m.saved_team_id === team.id,
               );
+              const pendingIds = roster.filter((m) => m.validation_status === "pending").length;
 
               return (
                 <li key={team.id} className="card flex flex-col p-5">
@@ -138,6 +139,23 @@ export default async function MisEquiposPage() {
                       </li>
                     ))}
                   </ul>
+
+                  {pendingIds > 0 ? (
+                    <div className="mt-3 flex flex-wrap items-start gap-3 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2">
+                      <p className="min-w-0 flex-1 text-sm text-warn">
+                        {pendingIds === 1
+                          ? "1 ID no se pudo verificar automáticamente."
+                          : `${pendingIds} IDs no se pudieron verificar automáticamente.`}
+                      </p>
+                      <ActionForm
+                        action={retrySavedTeamValidation}
+                        fields={{ savedTeamId: team.id }}
+                        label="Reintentar verificación"
+                        variant="primary"
+                        showNotice
+                      />
+                    </div>
+                  ) : null}
 
                   <div className="mt-4 flex flex-wrap items-start gap-3">
                     <Link

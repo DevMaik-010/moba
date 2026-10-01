@@ -52,6 +52,10 @@ export function ValidationRow({ kind = "member", id, nickname }: Props) {
     <form action={action} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name={kind === "profile" ? "profileId" : "memberId"} value={id} />
 
+      <p className="w-full text-xs text-ink-faint">
+        Si el sistema sigue sin responder, resuélvelo a mano:
+      </p>
+
       <div className="min-w-40">
         <label className="label" htmlFor={`nick-${id}`}>
           Nick confirmado

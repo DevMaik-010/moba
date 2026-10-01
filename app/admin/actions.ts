@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { lookupMlbbAccountAsAdmin } from "@/lib/mlbb";
+import { mlbbIdSchema } from "@/lib/mlbb/types";
 import { createClient, getSession } from "@/lib/supabase/server";
 import { BRACKET_SIZES, TEAM_SIZE_BY_MODE } from "@/lib/db/types";
 import type { ValidationStatus } from "@/lib/db/types";
@@ -441,4 +443,48 @@ export async function resolveProfileValidation(
   revalidatePath("/admin/validaciones");
   revalidatePath("/admin/usuarios");
   return { notice: "Cuenta resuelta" };
+}
+
+/**
+ * Antes de resolver a mano: vuelve a consultar el ID al verificador y, si
+ * ahora responde, aplica su veredicto a todas las filas pendientes con ese ID.
+ */
+export async function revalidateGameId(
+  _prev: AdminFormState,
+  formData: FormData,
+): Promise<AdminFormState> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  const parsed = mlbbIdSchema.safeParse({
+    gameUserId: formData.get("gameUserId"),
+    zoneId: formData.get("zoneId"),
+  });
+  if (!parsed.success) return { error: "ID inválido" };
+  const { gameUserId, zoneId } = parsed.data;
+
+  let nickname: string | undefined;
+  try {
+    nickname = (await lookupMlbbAccountAsAdmin(gameUserId, zoneId)).nickname;
+  } catch (error) {
+    console.error("[admin] revalidación falló:", error);
+  }
+
+  const supabase = await createClient();
+  const { data: status, error } = await supabase.rpc("revalidate_game_account", {
+    p_game_user_id: gameUserId,
+    p_zone_id: zoneId,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/validaciones");
+  revalidatePath("/admin");
+  revalidatePath("/admin/usuarios");
+
+  if (status === "valid") return { notice: `Verificado por el sistema${nickname ? `: ${nickname}` : ""}` };
+  if (status === "invalid") return { notice: "El sistema dice que ese ID no existe" };
+  return { error: "El verificador sigue sin responder. Resuélvelo a mano." };
 }

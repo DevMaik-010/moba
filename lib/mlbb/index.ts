@@ -175,6 +175,17 @@ export function lookupMlbbAccountForSignup(
   return lookup(gameUserId, zoneId, () => consumeSignupQuota(ip));
 }
 
+/**
+ * Busca una cuenta MLBB sin descontar cupo. Solo para el admin revisando la
+ * cola de validaciones: el que llama tiene que haber comprobado el rol.
+ */
+export function lookupMlbbAccountAsAdmin(
+  gameUserId: string,
+  zoneId: string,
+): Promise<MlbbLookupResult> {
+  return lookup(gameUserId, zoneId, async () => {});
+}
+
 /** ¿Ya hay una cuenta con este ID de jugador? (service role: ignora RLS) */
 export async function isGameAccountTaken(gameUserId: string, zoneId: string): Promise<boolean> {
   const admin = createAdminClient();

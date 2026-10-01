@@ -48,6 +48,8 @@ interface Props {
   variant?: "primary" | "ghost" | "danger";
   confirm?: string;
   disabled?: boolean;
+  /** Muestra también el mensaje de éxito de la acción. */
+  showNotice?: boolean;
 }
 
 /** Botón que dispara una Server Action y muestra su error en línea. */
@@ -58,6 +60,7 @@ export function ActionForm({
   variant = "ghost",
   confirm,
   disabled,
+  showNotice,
 }: Props) {
   const [state, formAction] = useActionState<AdminFormState, FormData>(action, {});
 
@@ -68,6 +71,9 @@ export function ActionForm({
       ))}
       <Button label={label} variant={variant} confirm={confirm} disabled={disabled} />
       {state.error ? <span className="text-xs text-bad">{state.error}</span> : null}
+      {state.notice && showNotice ? (
+        <span className="text-xs text-win">{state.notice}</span>
+      ) : null}
     </form>
   );
 }

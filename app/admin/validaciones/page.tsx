@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { revalidateGameId } from "@/app/admin/actions";
+import { ActionForm } from "@/components/admin/action-form";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, Team, TeamMember, Tournament } from "@/lib/db/types";
 import { ValidationRow } from "./validation-row";
@@ -51,7 +53,9 @@ export default async function ValidacionesPage() {
         <h1 className="text-2xl font-bold tracking-tight">Validaciones pendientes</h1>
         <p className="mt-1 text-sm text-ink-dim">
           IDs que el verificador automático no pudo resolver (proveedor caído, bloqueado o
-          con límite alcanzado). Confírmalos a mano pidiendo una captura del perfil.
+          con límite alcanzado). Primero <strong className="text-ink">revalida con el
+          sistema</strong>; si sigue sin responder, confírmalos a mano pidiendo una captura
+          del perfil.
         </p>
       </div>
 
@@ -78,6 +82,15 @@ export default async function ValidacionesPage() {
                     <span className="text-ink-faint"> · zona {account.zone_id}</span>
                   </span>
                   <span className="text-ink-dim">{account.display_name}</span>
+                  <span className="ml-auto">
+                    <ActionForm
+                      action={revalidateGameId}
+                      fields={{ gameUserId: account.game_user_id!, zoneId: account.zone_id! }}
+                      label="Revalidar con el sistema"
+                      variant="primary"
+                      showNotice
+                    />
+                  </span>
                 </div>
                 <ValidationRow kind="profile" id={account.id} nickname={account.mlbb_nickname} />
               </li>
@@ -122,6 +135,15 @@ export default async function ValidacionesPage() {
                       {tournament.name}
                     </Link>
                   ) : null}
+                  <span className="ml-auto">
+                    <ActionForm
+                      action={revalidateGameId}
+                      fields={{ gameUserId: member.game_user_id, zoneId: member.zone_id }}
+                      label="Revalidar con el sistema"
+                      variant="primary"
+                      showNotice
+                    />
+                  </span>
                 </div>
 
                 <ValidationRow id={member.id} nickname={member.nickname} />

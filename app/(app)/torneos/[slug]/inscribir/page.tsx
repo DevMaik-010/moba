@@ -7,6 +7,7 @@ import { TeamLogo } from "@/components/ui/team-logo";
 import { accountBlocker, accountState } from "@/lib/account";
 import { createClient, getSession } from "@/lib/supabase/server";
 import type { SavedTeam, SavedTeamMember, Team, Tournament } from "@/lib/db/types";
+import { retrySavedTeamValidation } from "@/app/(app)/mis-equipos/actions";
 import { registerSavedTeam } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -178,6 +179,7 @@ export default async function InscribirPage({
                   (m) => m.saved_team_id === team.id,
                 );
                 const rejected = roster.filter((m) => REJECTED.has(m.validation_status)).length;
+                const pendingIds = roster.filter((m) => m.validation_status === "pending").length;
 
                 return (
                   <li key={team.id} className="card space-y-4 p-5">
@@ -215,6 +217,22 @@ export default async function InscribirPage({
                       <p className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">
                         Hay {rejected} ID rechazado. Edita el equipo para corregirlo.
                       </p>
+                    ) : null}
+
+                    {pendingIds > 0 ? (
+                      <div className="flex flex-wrap items-start gap-3 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2">
+                        <p className="min-w-0 flex-1 text-sm text-warn">
+                          {pendingIds === 1
+                            ? "1 ID sin verificar. Puedes inscribirte igual (lo revisa un admin) o reintentar ahora."
+                            : `${pendingIds} IDs sin verificar. Puedes inscribirte igual (los revisa un admin) o reintentar ahora.`}
+                        </p>
+                        <ActionForm
+                          action={retrySavedTeamValidation}
+                          fields={{ savedTeamId: team.id }}
+                          label="Reintentar verificación"
+                          showNotice
+                        />
+                      </div>
                     ) : null}
 
                     <div className="flex flex-wrap items-start gap-3">
