@@ -1,4 +1,25 @@
-import type { Profile } from "@/lib/db/types";
+import type { Profile, ValidationStatus } from "@/lib/db/types";
+
+/** El dueño de la cuenta: siempre es el capitán (jugador 1) de sus equipos. */
+export interface CaptainInfo {
+  ownerId: string;
+  gameUserId: string;
+  zoneId: string;
+  nickname: string | null;
+  status: ValidationStatus;
+}
+
+/** Datos del capitán a partir del perfil, o null si todavía no registró su ID. */
+export function captainFromProfile(profile: Profile): CaptainInfo | null {
+  if (!profile.game_user_id || !profile.zone_id || !profile.mlbb_status) return null;
+  return {
+    ownerId: profile.id,
+    gameUserId: profile.game_user_id,
+    zoneId: profile.zone_id,
+    nickname: profile.mlbb_nickname,
+    status: profile.mlbb_status,
+  };
+}
 
 export type AccountState = "missing" | "pending" | "rejected" | "verified";
 

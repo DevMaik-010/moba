@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { NeedsGameId } from "@/components/ui/needs-game-id";
+import { captainFromProfile } from "@/lib/account";
 import { safeReturnPath } from "@/lib/navigation";
 import { getSession } from "@/lib/supabase/server";
 import { TEAM_SIZE_BY_MODE } from "@/lib/db/types";
@@ -18,6 +20,7 @@ export default async function NuevoEquipoPage({
     ? (modo as TournamentMode)
     : undefined;
   const returnTo = safeReturnPath(volver);
+  const captain = captainFromProfile(session.profile);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -33,7 +36,11 @@ export default async function NuevoEquipoPage({
           Lo armas una vez y lo inscribes con un clic en cada torneo de su modo.
         </p>
       </div>
-      <TeamEditor defaultMode={mode} returnTo={returnTo} />
+      {captain ? (
+        <TeamEditor captain={captain} defaultMode={mode} returnTo={returnTo} />
+      ) : (
+        <NeedsGameId />
+      )}
     </div>
   );
 }

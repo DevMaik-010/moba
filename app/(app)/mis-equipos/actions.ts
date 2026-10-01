@@ -20,15 +20,22 @@ const teamSchema = z.object({
   name: z.string().trim().min(2, "El nombre del equipo es muy corto").max(40),
   tag: z.string().trim().max(6, "El tag admite hasta 6 caracteres").default(""),
   mode: z.enum(["1v1", "3v3", "5v5"]),
-  members: z.array(mlbbIdSchema).min(1),
+  // Los integrantes además del capitán (vacío en 1v1).
+  members: z.array(mlbbIdSchema),
 });
 
-/** Lee las filas `member-<i>-id` / `member-<i>-zone` del formulario. */
+/**
+ * Lee las filas `member-<i>-id` / `member-<i>-zone` del formulario, de la 1 a
+ * la size-1: la 0 es el capitán y sale de la cuenta, no del formulario.
+ */
 function readMembers(formData: FormData, size: number) {
-  return Array.from({ length: size }, (_, i) => ({
-    gameUserId: String(formData.get(`member-${i}-id`) ?? "").trim(),
-    zoneId: String(formData.get(`member-${i}-zone`) ?? "").trim(),
-  }));
+  return Array.from({ length: size - 1 }, (_, n) => {
+    const i = n + 1;
+    return {
+      gameUserId: String(formData.get(`member-${i}-id`) ?? "").trim(),
+      zoneId: String(formData.get(`member-${i}-zone`) ?? "").trim(),
+    };
+  });
 }
 
 /**
@@ -57,18 +64,30 @@ export async function saveSavedTeam(
     return { error: parsed.error.issues[0]?.message ?? "Revisa los datos del equipo" };
   }
 
-  const { name, tag, members } = parsed.data;
+  const { profile } = session;
+  if (!profile.game_user_id || !profile.zone_id) {
+    return { error: "Registra tu ID de jugador en Mi perfil antes de armar un equipo" };
+  }
+  const captain = { gameUserId: profile.game_user_id, zoneId: profile.zone_id };
+
+  const { name, tag, members: others } = parsed.data;
+  const members = [captain, ...others];
 
   const seen = new Set<string>();
   for (const m of members) {
     const key = `${m.gameUserId}:${m.zoneId}`;
     if (seen.has(key)) {
-      return { error: `El ID ${m.gameUserId} (${m.zoneId}) está repetido en el roster` };
+      return {
+        error:
+          key === `${captain.gameUserId}:${captain.zoneId}`
+            ? "Tú ya eres el capitán: no te agregues otra vez como integrante"
+            : `El ID ${m.gameUserId} (${m.zoneId}) está repetido en el roster`,
+      };
     }
     seen.add(key);
   }
 
-  for (const member of members) {
+  for (const member of others) {
     try {
       await lookupMlbbAccount(member.gameUserId, member.zoneId, session.userId);
     } catch (error) {
@@ -83,7 +102,7 @@ export async function saveSavedTeam(
   const savedTeamId = String(formData.get("savedTeamId") ?? "") || null;
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("upsert_saved_team", {
+  const { data: savedId, error } = await supabase.rpc("upsert_saved_team", {
     p_saved_team_id: savedTeamId,
     p_name: name,
     p_tag: tag,
@@ -91,6 +110,20 @@ export async function saveSavedTeam(
     p_members: members.map((m, index) => ({ slot: index + 1, ...m })),
   });
   if (error) return { error: error.message };
+
+  // Logo opcional elegido al crear: el navegador ya lo subió a su carpeta.
+  const logoPath = String(formData.get("logoPath") ?? "") || null;
+  if (!savedTeamId && logoPath && savedId) {
+    const { error: logoError } = await supabase.rpc("set_saved_team_logo", {
+      p_saved_team_id: savedId,
+      p_path: logoPath,
+    });
+    if (logoError) {
+      // El equipo ya existe: el logo se puede volver a subir desde "Editar".
+      console.error("[mis-equipos] no se pudo guardar el logo:", logoError.message);
+      await supabase.storage.from(TEAM_LOGO_BUCKET).remove([logoPath]);
+    }
+  }
 
   revalidatePath("/mis-equipos");
   redirect(safeReturnPath(formData.get("volver")) ?? "/mis-equipos");

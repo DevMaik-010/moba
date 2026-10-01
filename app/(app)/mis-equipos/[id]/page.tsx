@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { NeedsGameId } from "@/components/ui/needs-game-id";
+import { captainFromProfile } from "@/lib/account";
 import { safeReturnPath } from "@/lib/navigation";
 import { createClient, getSession } from "@/lib/supabase/server";
 import type { SavedTeam, SavedTeamMember } from "@/lib/db/types";
@@ -35,6 +37,7 @@ export default async function EditarEquipoPage({
     .order("slot");
 
   const returnTo = safeReturnPath(volver);
+  const captain = captainFromProfile(session.profile);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -54,11 +57,16 @@ export default async function EditarEquipoPage({
         tag={team.tag}
         logoPath={team.logo_path}
       />
-      <TeamEditor
-        team={team}
-        members={(members ?? []) as SavedTeamMember[]}
-        returnTo={returnTo}
-      />
+      {captain ? (
+        <TeamEditor
+          captain={captain}
+          team={team}
+          members={(members ?? []) as SavedTeamMember[]}
+          returnTo={returnTo}
+        />
+      ) : (
+        <NeedsGameId />
+      )}
     </div>
   );
 }

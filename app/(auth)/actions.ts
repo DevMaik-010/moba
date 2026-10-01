@@ -19,11 +19,17 @@ export interface AuthFormState {
   error?: string;
   /** Lo que escribió el usuario (sin la contraseña), para no perderlo en un error. */
   values?: Record<string, string>;
+  /** Cuenta creada: el formulario muestra el resultado en un modal. */
+  created?: {
+    /** `confirm_email`: Supabase pide confirmar el correo antes de entrar. */
+    status: "verified" | "pending" | "confirm_email";
+    nickname: string | null;
+  };
 }
 
 function keepValues(formData: FormData): Record<string, string> {
   const values: Record<string, string> = {};
-  for (const key of ["email", "displayName", "gameUserId", "zoneId"]) {
+  for (const key of ["email", "gameUserId", "zoneId"]) {
     values[key] = String(formData.get(key) ?? "");
   }
   return values;
@@ -34,15 +40,8 @@ const credentialsSchema = z.object({
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
 });
 
-const signUpSchema = credentialsSchema
-  .extend({
-    displayName: z
-      .string()
-      .trim()
-      .min(3, "El nombre debe tener al menos 3 caracteres")
-      .max(40, "El nombre es demasiado largo"),
-  })
-  .extend(mlbbIdSchema.shape);
+// Sin nombre visible: la cuenta se muestra con su nick de MLBB al verificarse.
+const signUpSchema = credentialsSchema.extend(mlbbIdSchema.shape);
 
 /** IP del cliente según el proxy de delante (Vercel, nginx…), para el cupo del verificador. */
 async function clientIp(): Promise<string> {
@@ -81,14 +80,13 @@ export async function signUp(
   formData: FormData,
 ): Promise<AuthFormState> {
   const result = await createAccount(formData);
-  return { ...result, values: keepValues(formData) };
+  return result.created ? result : { ...result, values: keepValues(formData) };
 }
 
 async function createAccount(formData: FormData): Promise<AuthFormState> {
   const parsed = signUpSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
-    displayName: formData.get("displayName"),
     gameUserId: formData.get("gameUserId"),
     zoneId: formData.get("zoneId"),
   });
@@ -124,7 +122,6 @@ async function createAccount(formData: FormData): Promise<AuthFormState> {
     password: parsed.data.password,
     options: {
       data: {
-        display_name: parsed.data.displayName,
         game_user_id: gameUserId,
         zone_id: zoneId,
       },
@@ -151,12 +148,24 @@ async function createAccount(formData: FormData): Promise<AuthFormState> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { error: "Cuenta creada. Revisa tu correo para confirmarla." };
+    return { created: { status: "confirm_email", nickname: null } };
   }
 
+  // El estado real lo fijó la base de datos al crear el perfil.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("mlbb_status, mlbb_nickname")
+    .eq("id", user.id)
+    .maybeSingle();
+
   revalidatePath("/", "layout");
-  // Si quedó en revisión, el perfil le explica qué falta.
-  redirect(lookupStatus === "valid" ? "/torneos" : "/perfil");
+  const verified = profile?.mlbb_status === "valid" || profile?.mlbb_status === "manual_ok";
+  return {
+    created: {
+      status: verified ? "verified" : "pending",
+      nickname: profile?.mlbb_nickname ?? null,
+    },
+  };
 }
 
 export async function signOut(): Promise<void> {

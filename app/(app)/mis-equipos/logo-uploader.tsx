@@ -4,13 +4,8 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { TeamLogo } from "@/components/ui/team-logo";
-import { createClient } from "@/lib/supabase/client";
-import { TEAM_LOGO_BUCKET, TEAM_LOGO_MAX_BYTES, TEAM_LOGO_TYPES } from "@/lib/team-logo";
+import { TEAM_LOGO_ACCEPT, uploadTeamLogo } from "@/lib/team-logo-upload";
 import { setSavedTeamLogo } from "./actions";
-
-const SIDE = 256;
-/** Antes de reducirla; la imagen final pesa unos pocos KB. */
-const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
 
 interface Props {
   savedTeamId: string;
@@ -20,35 +15,7 @@ interface Props {
   logoPath: string | null;
 }
 
-/** Recorta al centro y reduce a un cuadrado de 256 px en WebP. */
-async function toSquareWebp(file: File): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
-  const crop = Math.min(bitmap.width, bitmap.height);
-  const canvas = document.createElement("canvas");
-  canvas.width = SIDE;
-  canvas.height = SIDE;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Tu navegador no puede procesar la imagen");
-  ctx.drawImage(
-    bitmap,
-    (bitmap.width - crop) / 2,
-    (bitmap.height - crop) / 2,
-    crop,
-    crop,
-    0,
-    0,
-    SIDE,
-    SIDE,
-  );
-  bitmap.close();
-
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/webp", 0.9),
-  );
-  if (!blob) throw new Error("No se pudo convertir la imagen");
-  return blob;
-}
-
+/** Cambia o quita el logo de un equipo que ya existe. */
 export function LogoUploader({ savedTeamId, ownerId, name, tag, logoPath }: Props) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
@@ -65,32 +32,14 @@ export function LogoUploader({ savedTeamId, ownerId, name, tag, logoPath }: Prop
     });
   }
 
-  async function onFile(file: File | undefined) {
+  function onFile(file: File | undefined) {
     setError(null);
     setNotice(null);
     if (!file) return;
-    if (!(file.type in TEAM_LOGO_TYPES)) {
-      setError("Usa una imagen PNG, JPG o WebP");
-      return;
-    }
-    if (file.size > MAX_SOURCE_BYTES) {
-      setError("La imagen pesa demasiado (máximo 8 MB)");
-      return;
-    }
 
     startTransition(async () => {
       try {
-        const blob = await toSquareWebp(file);
-        if (blob.size > TEAM_LOGO_MAX_BYTES) throw new Error("El logo quedó demasiado pesado");
-
-        // Nombre nuevo en cada subida: evita la caché del CDN con el logo viejo.
-        const path = `${ownerId}/${savedTeamId}-${Date.now()}.webp`;
-        const { error: uploadError } = await createClient()
-          .storage.from(TEAM_LOGO_BUCKET)
-          .upload(path, blob, { contentType: "image/webp", upsert: false });
-        if (uploadError) throw new Error(uploadError.message);
-
-        save(path);
+        save(await uploadTeamLogo(ownerId, file, savedTeamId));
       } catch (e) {
         setError(e instanceof Error ? e.message : "No se pudo subir el logo");
       } finally {
@@ -119,10 +68,10 @@ export function LogoUploader({ savedTeamId, ownerId, name, tag, logoPath }: Prop
             <input
               ref={input}
               type="file"
-              accept={Object.keys(TEAM_LOGO_TYPES).join(",")}
+              accept={TEAM_LOGO_ACCEPT}
               className="sr-only"
               disabled={busy}
-              onChange={(e) => void onFile(e.target.files?.[0])}
+              onChange={(e) => onFile(e.target.files?.[0])}
             />
           </label>
           {logoPath ? (

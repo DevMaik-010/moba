@@ -42,8 +42,13 @@ Supabase Realtime, el cuadrito aparece en la pantalla de todos sin recargar.
 de MLBB, y se verifica antes de crearla: un ID que no existe no crea cuenta, y un ID
 solo puede estar en una cuenta. Si el verificador no responde, la cuenta queda en
 revisión en *Admin → Validaciones*. Mientras tanto (o si no tiene ID, como las cuentas
-anteriores) puede armar equipos pero no inscribirse; lo corrige en *Mi perfil*. El ID
-de la cuenta es independiente del roster de sus equipos.
+anteriores) puede armar equipos pero no inscribirse; lo corrige en *Mi perfil*. El
+registro no pide nombre: la cuenta se muestra con su nick de MLBB al verificarse
+("Jugador <ID>" mientras tanto), y un modal le dice si quedó verificada o en revisión.
+
+**El capitán es quien arma el equipo.** El jugador 1 de cada equipo es siempre el ID
+de la cuenta; solo se cargan los demás integrantes (4 en 5v5, 2 en 3v3, ninguno en
+1v1). El logo es opcional y se puede elegir al crear el equipo.
 
 **Una inscripción activa.** Un capitán solo puede estar inscrito en un torneo abierto,
 cerrado o en juego a la vez; cuando termina, se cancela o su equipo cae, puede
@@ -127,6 +132,7 @@ supabase/migrations/0007_revoke_anon_execute.sql  sin sesión no se ejecuta ning
 supabase/migrations/0008_security_hardening.sql   IDs de jugadores y caché de validación privados, validaciones extra
 supabase/migrations/0009_team_codes_logos.sql     código de inscripción por equipo, logos de equipo (bucket team-logos)
 supabase/migrations/0010_account_game_id_one_entry.sql  ID de jugador por cuenta, una sola inscripción activa
+supabase/migrations/0011_nickname_captain_is_owner.sql  nick como nombre visible, capitán = dueño de la cuenta
 ```
 
 ### 3. Primer administrador
