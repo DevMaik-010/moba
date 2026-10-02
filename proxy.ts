@@ -39,12 +39,15 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/admin") ||
     pathname.startsWith("/mis-equipos") ||
     pathname.startsWith("/perfil") ||
+    pathname.startsWith("/reportes") ||
     pathname.includes("/inscribir");
 
   if (!user && needsSession) {
     const login = request.nextUrl.clone();
     login.pathname = "/login";
-    login.searchParams.set("next", pathname);
+    login.search = "";
+    // Con la query: un reporte abierto desde la sala vuelve con su torneo y partido.
+    login.searchParams.set("next", pathname + request.nextUrl.search);
     return NextResponse.redirect(login);
   }
 

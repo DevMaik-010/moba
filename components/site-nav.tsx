@@ -27,6 +27,9 @@ export async function SiteNav() {
               <Link href="/mis-equipos" className="hover:text-ink">
                 Mis equipos
               </Link>
+              <Link href="/reportes" className="hover:text-ink">
+                Reportes
+              </Link>
               <Link href="/perfil" className="relative hover:text-ink">
                 Mi perfil
                 {blocker ? (

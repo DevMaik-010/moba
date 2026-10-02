@@ -97,33 +97,59 @@ export async function postRoomId(
   );
 }
 
-const scoreSchema = z.object({
-  myScore: z.coerce.number().int().min(0).max(99),
-  rivalScore: z.coerce.number().int().min(0).max(99),
-});
-
-export async function claimWin(
+/** El capitán avisa que su equipo terminó la preparación de la partida. */
+export async function markReady(
   _prev: MatchFormState,
   formData: FormData,
 ): Promise<MatchFormState> {
-  const parsed = scoreSchema.safeParse({
-    myScore: formData.get("myScore"),
-    rivalScore: formData.get("rivalScore"),
-  });
-  if (!parsed.success) return { error: "Marcador inválido" };
-  if (parsed.data.myScore <= parsed.data.rivalScore) {
-    return { error: "Solo el equipo ganador reporta: tu marcador tiene que ser mayor" };
-  }
+  return captainRpc(
+    formData,
+    (supabase, matchId) => supabase.rpc("mark_game_ready", { p_match_id: matchId }),
+    "Tu equipo está listo",
+  );
+}
 
+const claimSchema = z.object({
+  matchId: z.string().uuid(),
+  slug: z.string().min(1),
+  screenshotPath: z.string().min(1).max(200),
+});
+
+/**
+ * Reporta la victoria de la partida en curso. Se llama desde el cliente
+ * después de subir la captura al bucket, con la ruta que devolvió.
+ */
+export async function claimGame(input: {
+  matchId: string;
+  slug: string;
+  screenshotPath: string;
+}): Promise<MatchFormState> {
+  const parsed = claimSchema.safeParse(input);
+  if (!parsed.success) return { error: "Falta la captura de pantalla" };
+
+  const formData = new FormData();
+  formData.set("matchId", parsed.data.matchId);
+  formData.set("slug", parsed.data.slug);
   return captainRpc(
     formData,
     (supabase, matchId) =>
-      supabase.rpc("claim_match_win", {
+      supabase.rpc("claim_game_win", {
         p_match_id: matchId,
-        p_my_score: parsed.data.myScore,
-        p_rival_score: parsed.data.rivalScore,
+        p_screenshot_path: parsed.data.screenshotPath,
       }),
-    "Victoria reportada. Falta la verificación del admin.",
+    "Victoria reportada. Falta que el rival la confirme o que el admin la verifique.",
+  );
+}
+
+/** El capitán rival da por buena la victoria: queda registrada sin el admin. */
+export async function confirmClaim(
+  _prev: MatchFormState,
+  formData: FormData,
+): Promise<MatchFormState> {
+  return captainRpc(
+    formData,
+    (supabase, matchId) => supabase.rpc("confirm_game_claim", { p_match_id: matchId }),
+    "Resultado confirmado",
   );
 }
 
@@ -137,7 +163,7 @@ export async function disputeClaim(
   return captainRpc(
     formData,
     (supabase, matchId) =>
-      supabase.rpc("dispute_match_claim", { p_match_id: matchId, p_note: note }),
+      supabase.rpc("dispute_game_claim", { p_match_id: matchId, p_note: note }),
     "Disputa enviada al admin",
   );
 }

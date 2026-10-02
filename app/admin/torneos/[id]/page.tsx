@@ -48,8 +48,8 @@ export default async function AdminTorneoPage({ params }: PageProps<"/admin/torn
       .order("seed", { nullsFirst: false }),
     supabase.from("matches").select("*").eq("tournament_id", id).order("round").order("slot"),
     supabase
-      .from("match_rooms")
-      .select("match_id", { count: "exact", head: true })
+      .from("match_games")
+      .select("id", { count: "exact", head: true })
       .eq("tournament_id", id)
       .not("claim_side", "is", null)
       .is("resolved_at", null),

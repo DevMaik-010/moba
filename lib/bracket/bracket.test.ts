@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   advanceWinner,
+  bestOf,
   emptySimBracket,
   generateEmptyBracket,
   matchesInRound,
@@ -12,8 +13,18 @@ import {
   roundsFor,
   seedPosition,
   suggestBracketSize,
+  winsNeeded,
   type SimMatch,
 } from "./bracket.ts";
+
+test("las series son al mejor de 3 y la final al mejor de 5", () => {
+  assert.equal(bestOf(1, 3), 3);
+  assert.equal(bestOf(2, 3), 3);
+  assert.equal(bestOf(3, 3), 5);
+  assert.equal(bestOf(1, 1), 5);
+  assert.equal(winsNeeded(3), 2);
+  assert.equal(winsNeeded(5), 3);
+});
 
 test("un cuadro de 8 tiene 3 rondas y 7 partidos", () => {
   const bracket = generateEmptyBracket(8);

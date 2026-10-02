@@ -92,6 +92,19 @@ export function roundLabel(round: number, totalRounds: number): string {
   }
 }
 
+/**
+ * Partidas de la serie: al mejor de 3, la final al mejor de 5.
+ * Espejo de `match_best_of` (0013), que es la fuente de verdad.
+ */
+export function bestOf(round: number, totalRounds: number): number {
+  return round === totalRounds ? 5 : 3;
+}
+
+/** Victorias para ganar una serie al mejor de N. Bo3 → 2, Bo5 → 3. */
+export function winsNeeded(bo: number): number {
+  return Math.floor(bo / 2) + 1;
+}
+
 // ---------------------------------------------------------------------------
 // Simulación (espejo de las RPC, usada en tests)
 // ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { MatchCard } from "@/components/bracket/match-card";
-import { roundLabel } from "@/lib/bracket/bracket";
+import { bestOf, roundLabel } from "@/lib/bracket/bracket";
 import { matchPath } from "@/lib/match-access";
 import { createClient } from "@/lib/supabase/client";
 import type { Match, Team } from "@/lib/db/types";
@@ -120,13 +120,16 @@ export function BracketView({
         {rounds.map(({ round, matches: roundMatches }, index) => (
           <div key={round} className="flex items-stretch">
             <div className="flex w-56 shrink-0 flex-col">
-              <p className={`${HEADER} text-ink-faint`}>{roundLabel(round, total)}</p>
+              <p className={`${HEADER} text-ink-faint`}>
+                {roundLabel(round, total)} · Bo{bestOf(round, total)}
+              </p>
               <div className="flex flex-1 flex-col">
                 {roundMatches.map((match) => (
                   <div key={match.id} className="flex flex-1 items-center py-1">
                     <MatchCard
                       match={match}
                       teams={teamsById}
+                      bestOf={bestOf(round, total)}
                       highlightTeamId={highlightTeamId}
                       href={slug ? matchPath(slug, match.id) : undefined}
                     />

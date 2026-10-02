@@ -154,13 +154,76 @@ export type MatchRoom = {
   code_b: string;
   room_id: string | null;
   room_posted_at: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+/** Una partida de la serie (0013). Solo la lee el admin; el resto, por get_match_room. */
+export type MatchGame = {
+  id: string;
+  match_id: string;
+  tournament_id: string;
+  game_no: number;
+  prep_started_at: string;
+  ready_a_at: string | null;
+  ready_b_at: string | null;
   claim_side: MatchSide | null;
-  claim_score_a: number | null;
-  claim_score_b: number | null;
   claimed_by: string | null;
   claimed_at: string | null;
+  /** Ruta en el bucket privado `match-evidence`. */
+  screenshot_path: string | null;
   disputed_at: string | null;
   dispute_note: string | null;
+  winner_side: MatchSide | null;
+  resolved_via: "rival" | "admin" | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+/** Partida tal como la devuelve get_match_room. */
+export type MatchGameView = {
+  id: string;
+  game_no: number;
+  winner_side: MatchSide | null;
+  resolved_via: "rival" | "admin" | null;
+  resolved_at: string | null;
+  prep_started_at: string;
+  /** Al estar los dos listos o a los 5 minutos de preparación. */
+  starts_at: string;
+  ready_a: boolean;
+  ready_b: boolean;
+  claim_side: MatchSide | null;
+  claimed_at: string | null;
+  /** Solo con acceso a la sala. */
+  screenshot_path: string | null;
+  disputed_at: string | null;
+  dispute_note: string | null;
+};
+
+export type ReportReason =
+  | "no_show"
+  | "cheating"
+  | "toxicity"
+  | "account_sharing"
+  | "false_result"
+  | "other";
+export type ReportStatus = "open" | "reviewing" | "resolved" | "dismissed";
+
+/** Reporte de conducta: lo leen su autor y el admin. */
+export type Report = {
+  id: string;
+  tournament_id: string;
+  match_id: string | null;
+  reporter_id: string;
+  reported_team_id: string | null;
+  reported_player: string | null;
+  reason: ReportReason;
+  description: string;
+  evidence_path: string | null;
+  status: ReportStatus;
+  admin_note: string | null;
+  resolved_by: string | null;
   resolved_at: string | null;
   created_at: string;
 };
@@ -176,6 +239,9 @@ export type MatchRoomView = {
     score_b: number;
     winner_id: string | null;
     host_side: MatchSide | null;
+    /** 3, o 5 en la final. */
+    best_of: number;
+    wins_needed: number;
   };
   tournament: {
     id: string;
@@ -191,15 +257,12 @@ export type MatchRoomView = {
   viewer: MatchSide | "admin" | null;
   /** Lado que capitanea el usuario con sesión, si juega este partido. */
   captain_side: MatchSide | null;
+  /** Hora del servidor, para que la cuenta regresiva no dependa del reloj del cliente. */
+  server_now: string;
+  games: MatchGameView[];
   room: {
     room_id: string | null;
     room_posted_at: string | null;
-    claim_side: MatchSide | null;
-    claim_score_a: number | null;
-    claim_score_b: number | null;
-    claimed_at: string | null;
-    disputed_at: string | null;
-    dispute_note: string | null;
     resolved_at: string | null;
     /** Códigos de inscripción de cada equipo; solo los ve el admin. */
     code_a: string | null;
@@ -261,6 +324,8 @@ export type Database = {
       saved_team_members: Row<SavedTeamMember>;
       matches: Row<Match>;
       match_rooms: Row<MatchRoom>;
+      match_games: Row<MatchGame>;
+      reports: Row<Report>;
       mlbb_account_cache: Row<MlbbAccountCacheRow>;
       mlbb_lookup_log: Row<MlbbLookupLogRow>;
       mlbb_signup_lookup_log: Row<MlbbSignupLookupLogRow>;
@@ -352,16 +417,34 @@ export type Database = {
         Args: { p_match_id: string; p_room_id: string };
         Returns: undefined;
       };
-      claim_match_win: {
-        Args: { p_match_id: string; p_my_score: number; p_rival_score: number };
+      mark_game_ready: { Args: { p_match_id: string }; Returns: undefined };
+      claim_game_win: {
+        Args: { p_match_id: string; p_screenshot_path: string };
         Returns: undefined;
       };
-      dispute_match_claim: {
+      confirm_game_claim: { Args: { p_match_id: string }; Returns: undefined };
+      dispute_game_claim: {
         Args: { p_match_id: string; p_note: string };
         Returns: undefined;
       };
-      confirm_match_claim: { Args: { p_match_id: string }; Returns: undefined };
-      reject_match_claim: { Args: { p_match_id: string }; Returns: undefined };
+      resolve_game: { Args: { p_game_id: string; p_winner: MatchSide }; Returns: undefined };
+      reject_game_claim: { Args: { p_game_id: string }; Returns: undefined };
+      create_report: {
+        Args: {
+          p_tournament_id: string;
+          p_match_id: string | null;
+          p_team_id: string | null;
+          p_player: string | null;
+          p_reason: ReportReason;
+          p_description: string;
+          p_evidence_path: string | null;
+        };
+        Returns: string;
+      };
+      resolve_report: {
+        Args: { p_report_id: string; p_status: ReportStatus; p_note: string | null };
+        Returns: undefined;
+      };
       report_match: {
         Args: { p_match_id: string; p_score_a: number; p_score_b: number };
         Returns: undefined;
@@ -383,6 +466,8 @@ export type Database = {
       match_status: MatchStatus;
       validation_status: ValidationStatus;
       match_side: MatchSide;
+      report_reason: ReportReason;
+      report_status: ReportStatus;
     };
     Views: Record<never, never>;
     CompositeTypes: Record<never, never>;

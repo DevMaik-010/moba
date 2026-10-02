@@ -1,14 +1,17 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useState, useTransition, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 
+import { EVIDENCE_ACCEPT, uploadEvidence } from "@/lib/evidence-upload";
 import { createClient } from "@/lib/supabase/client";
 import {
-  claimWin,
+  claimGame,
+  confirmClaim,
   disputeClaim,
   enterMatch,
+  markReady,
   postRoomId,
   type MatchFormState,
 } from "./actions";
@@ -116,28 +119,143 @@ export function RoomIdForm({ current, ...target }: Target & { current: string | 
   );
 }
 
-export function ClaimForm({ myTeam, rivalTeam, ...target }: Target & { myTeam: string; rivalTeam: string }) {
+/** El capitán marca a su equipo listo para empezar antes de los 5 minutos. */
+export function ReadyForm(target: Target) {
   return (
-    <MatchForm action={claimWin} target={target}>
-      <p className="text-sm text-ink-dim">
-        Solo si ganaste. Pon el marcador de la serie (por ejemplo 2–1 en un Bo3).
-      </p>
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="label" htmlFor="myScore">
-            {myTeam}
-          </label>
-          <input id="myScore" name="myScore" type="number" min={0} max={99} defaultValue={1} className="field w-20" required />
-        </div>
-        <div>
-          <label className="label" htmlFor="rivalScore">
-            {rivalTeam}
-          </label>
-          <input id="rivalScore" name="rivalScore" type="number" min={0} max={99} defaultValue={0} className="field w-20" required />
-        </div>
-        <Submit label="Mi equipo ganó" />
-      </div>
+    <MatchForm action={markReady} target={target}>
+      <Submit label="Mi equipo está listo" />
     </MatchForm>
+  );
+}
+
+/** Victoria de la partida en curso: primero sube la captura, después reporta. */
+export function ClaimGameForm({
+  userId,
+  gameNo,
+  ...target
+}: Target & { userId: string; gameNo: number }) {
+  const router = useRouter();
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [state, setState] = useState<MatchFormState>({});
+  const [busy, startTransition] = useTransition();
+
+  function pick(next: File | null) {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(next);
+    setPreview(next ? URL.createObjectURL(next) : null);
+  }
+
+  function submit() {
+    if (!file) {
+      setState({ error: "Adjunta la captura de la pantalla de victoria" });
+      return;
+    }
+    setState({});
+    startTransition(async () => {
+      try {
+        const screenshotPath = await uploadEvidence(userId, file, `${target.matchId}-g${gameNo}`);
+        const result = await claimGame({ ...target, screenshotPath });
+        setState(result);
+        if (!result.error) router.refresh();
+      } catch (e) {
+        setState({ error: e instanceof Error ? e.message : "No se pudo subir la captura" });
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-ink-dim">
+        Solo si tu equipo ganó la partida {gameNo}. Sube la captura de la pantalla final: el
+        capitán rival puede confirmarla al instante y, si no, el admin la verifica.
+      </p>
+      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line px-4 py-5 text-center text-sm text-ink-dim transition hover:border-brand">
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element -- vista previa local (blob:)
+          <img src={preview} alt="Vista previa de la captura" className="max-h-48 rounded-md" />
+        ) : (
+          <span>Toca para elegir la captura (PNG, JPG o WebP)</span>
+        )}
+        {file ? <span className="text-xs text-ink-faint">{file.name} · cambiar</span> : null}
+        <input
+          type="file"
+          accept={EVIDENCE_ACCEPT}
+          className="sr-only"
+          disabled={busy}
+          onChange={(e) => pick(e.target.files?.[0] ?? null)}
+        />
+      </label>
+      <button
+        type="button"
+        onClick={submit}
+        disabled={busy}
+        className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+      >
+        {busy ? "Subiendo…" : `Ganamos la partida ${gameNo}`}
+      </button>
+      <Feedback state={state} />
+    </div>
+  );
+}
+
+/** El capitán rival acepta el resultado reportado. */
+export function ConfirmForm({ claimTeam, ...target }: Target & { claimTeam: string }) {
+  return (
+    <MatchForm action={confirmClaim} target={target}>
+      <Submit label={`Confirmar: ganó ${claimTeam}`} />
+    </MatchForm>
+  );
+}
+
+/**
+ * Cuenta regresiva de la preparación. Corrige el reloj del navegador con la
+ * hora del servidor y, al llegar a cero, vuelve a pedir la página para que
+ * aparezca el formulario de resultado.
+ */
+export function PrepCountdown({ startsAt, serverNow }: { startsAt: string; serverNow: string }) {
+  const router = useRouter();
+  // null hasta montar: el servidor y el navegador no comparten reloj.
+  const [left, setLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    const offset = Date.parse(serverNow) - Date.now();
+    const target = Date.parse(startsAt);
+    // tick corre siempre después de crear el intervalo (el primero va por setTimeout).
+    const tick = () => {
+      const ms = Math.max(0, target - (Date.now() + offset));
+      setLeft(ms);
+      if (ms === 0) {
+        clearInterval(id);
+        router.refresh();
+      }
+    };
+    const first = setTimeout(tick, 0);
+    const id = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, [startsAt, serverNow, router]);
+
+  if (left === null) {
+    return <p className="font-mono text-4xl font-semibold tabular-nums text-ink-faint">--:--</p>;
+  }
+
+  const total = Math.ceil(left / 1000);
+  const mm = String(Math.floor(total / 60)).padStart(2, "0");
+  const ss = String(total % 60).padStart(2, "0");
+  const pct = Math.min(100, (left / (5 * 60 * 1000)) * 100);
+
+  return (
+    <div className="space-y-2">
+      <p className="font-mono text-4xl font-semibold tabular-nums" aria-live="polite">
+        {mm}:{ss}
+      </p>
+      <div className="h-1.5 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+        <div className="h-full bg-warn transition-[width] duration-1000" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   );
 }
 

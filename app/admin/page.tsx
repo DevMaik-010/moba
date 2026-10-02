@@ -36,6 +36,7 @@ export default async function AdminHome() {
     { count: pendingMembers },
     { data: claims },
     { count: pendingAccounts },
+    { count: openReports },
   ] = await Promise.all([
     supabase.from("tournaments").select("*").order("created_at", { ascending: false }),
     supabase
@@ -43,7 +44,7 @@ export default async function AdminHome() {
       .select("id", { count: "exact", head: true })
       .eq("validation_status", "pending"),
     supabase
-      .from("match_rooms")
+      .from("match_games")
       .select("tournament_id")
       .not("claim_side", "is", null)
       .is("resolved_at", null),
@@ -51,6 +52,10 @@ export default async function AdminHome() {
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("mlbb_status", "pending"),
+    supabase
+      .from("reports")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["open", "reviewing"]),
   ]);
 
   const pending = (pendingMembers ?? 0) + (pendingAccounts ?? 0);
@@ -86,6 +91,15 @@ export default async function AdminHome() {
           <span className="ml-2 text-ink-dim">
             El verificador automático no pudo resolverlos. Revísalos a mano →
           </span>
+        </Link>
+      ) : null}
+
+      {openReports ? (
+        <Link href="/admin/reportes" className="card block border-bad/40 bg-bad/5 p-4 text-sm">
+          <span className="font-semibold text-bad">
+            {openReports} {openReports === 1 ? "reporte de conducta" : "reportes de conducta"}
+          </span>
+          <span className="ml-2 text-ink-dim">esperan tu revisión →</span>
         </Link>
       ) : null}
 

@@ -305,6 +305,7 @@ export async function reportMatch(
   if (parsed.data.scoreA === parsed.data.scoreB) {
     return { error: "No se admiten empates" };
   }
+  // El formato (Bo3 / Bo5) lo valida report_match.
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("report_match", {
@@ -320,10 +321,45 @@ export async function reportMatch(
   return { notice: "Resultado registrado" };
 }
 
-async function resolveClaim(
+function revalidateResults(tournamentId: string) {
+  revalidatePath(`/admin/torneos/${tournamentId}/partidos`);
+  revalidatePath(`/admin/torneos/${tournamentId}`);
+  revalidatePath("/admin");
+  revalidatePath("/torneos", "layout");
+}
+
+/**
+ * Da la partida a un lado: confirma el reporte del capitán, lo invierte o la
+ * adjudica sin reporte (p. ej. si un equipo no se presentó).
+ */
+export async function resolveGame(
+  _prev: AdminFormState,
   formData: FormData,
-  fn: "confirm_match_claim" | "reject_match_claim",
-  notice: string,
+): Promise<AdminFormState> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  const winner = String(formData.get("winner"));
+  if (winner !== "a" && winner !== "b") return { error: "Ganador inválido" };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("resolve_game", {
+    p_game_id: String(formData.get("gameId")),
+    p_winner: winner,
+  });
+  if (error) return { error: error.message };
+
+  revalidateResults(String(formData.get("tournamentId")));
+  return { notice: "Partida registrada" };
+}
+
+/** Descarta el reporte de la partida; el capitán puede volver a reportar. */
+export async function rejectGameClaim(
+  _prev: AdminFormState,
+  formData: FormData,
 ): Promise<AdminFormState> {
   try {
     await requireAdmin();
@@ -332,31 +368,44 @@ async function resolveClaim(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc(fn, { p_match_id: String(formData.get("matchId")) });
+  const { error } = await supabase.rpc("reject_game_claim", {
+    p_game_id: String(formData.get("gameId")),
+  });
   if (error) return { error: error.message };
 
-  const tournamentId = String(formData.get("tournamentId"));
-  revalidatePath(`/admin/torneos/${tournamentId}/partidos`);
-  revalidatePath(`/admin/torneos/${tournamentId}`);
+  revalidateResults(String(formData.get("tournamentId")));
+  return { notice: "Reporte rechazado" };
+}
+
+const REPORT_STATUSES = ["reviewing", "resolved", "dismissed"] as const;
+
+export async function resolveReport(
+  _prev: AdminFormState,
+  formData: FormData,
+): Promise<AdminFormState> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  const status = String(formData.get("status"));
+  if (!(REPORT_STATUSES as readonly string[]).includes(status)) {
+    return { error: "Estado inválido" };
+  }
+  const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("resolve_report", {
+    p_report_id: String(formData.get("reportId")),
+    p_status: status as (typeof REPORT_STATUSES)[number],
+    p_note: note || null,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/reportes");
   revalidatePath("/admin");
-  revalidatePath("/torneos", "layout");
-  return { notice };
-}
-
-/** El ganador reportado por el capitán avanza de ronda. */
-export async function confirmMatchClaim(
-  _prev: AdminFormState,
-  formData: FormData,
-): Promise<AdminFormState> {
-  return resolveClaim(formData, "confirm_match_claim", "Resultado confirmado");
-}
-
-/** Descarta el reporte; los capitanes pueden volver a reportar. */
-export async function rejectMatchClaim(
-  _prev: AdminFormState,
-  formData: FormData,
-): Promise<AdminFormState> {
-  return resolveClaim(formData, "reject_match_claim", "Reporte rechazado");
+  return { notice: "Reporte actualizado" };
 }
 
 export async function setRole(
