@@ -1,7 +1,11 @@
 import { createTournament } from "@/app/admin/actions";
+import { getSession } from "@/lib/supabase/server";
 import { TournamentForm } from "../tournament-form";
 
-export default function NuevoTorneoPage() {
+export default async function NuevoTorneoPage() {
+  // Ya resuelta por el layout de admin: getSession está memoizada.
+  const session = await getSession();
+
   return (
     <div className="max-w-xl space-y-6">
       <div>
@@ -10,7 +14,7 @@ export default function NuevoTorneoPage() {
           Se crea en borrador. El cuadro se dibuja cuando abras las inscripciones.
         </p>
       </div>
-      <TournamentForm action={createTournament} />
+      <TournamentForm action={createTournament} draftOwnerId={session?.userId} />
     </div>
   );
 }

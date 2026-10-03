@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { EVIDENCE_ACCEPT, uploadEvidence } from "@/lib/evidence-upload";
+import { useFormDraft } from "@/lib/form-draft";
 import { REPORT_REASONS } from "@/lib/reports";
 import type { ReportReason } from "@/lib/db/types";
 import { createReport, type ReportFormState } from "../actions";
@@ -25,6 +26,9 @@ export function ReportForm({ userId, tournamentId, teams, matches, defaultMatchI
   const router = useRouter();
   const [state, setState] = useState<ReportFormState>({});
   const [busy, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
+  // Lo escrito sobrevive a recargar o volver más tarde (la captura no).
+  useFormDraft(formRef, `report:${userId}:${tournamentId}:${defaultMatchId ?? ""}`, state);
 
   function submit(formData: FormData) {
     setState({});
@@ -55,6 +59,7 @@ export function ReportForm({ userId, tournamentId, teams, matches, defaultMatchI
 
   return (
     <form
+      ref={formRef}
       // onSubmit y no action: así un error no vacía lo que ya se escribió.
       onSubmit={(e) => {
         e.preventDefault();

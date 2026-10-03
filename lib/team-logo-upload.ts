@@ -50,11 +50,12 @@ export async function uploadTeamLogo(ownerId: string, file: File, prefix: string
   const blob = await toSquareWebp(file);
   if (blob.size > TEAM_LOGO_MAX_BYTES) throw new Error("El logo quedó demasiado pesado");
 
-  // Nombre nuevo en cada subida: evita la caché del CDN con el logo viejo.
+  // Nombre nuevo en cada subida: evita la caché del CDN con el logo viejo, y por
+  // eso el archivo puede guardarse en el navegador un año sin revalidar.
   const path = `${ownerId}/${prefix}-${Date.now()}.webp`;
   const { error } = await createClient()
     .storage.from(TEAM_LOGO_BUCKET)
-    .upload(path, blob, { contentType: "image/webp", upsert: false });
+    .upload(path, blob, { contentType: "image/webp", upsert: false, cacheControl: "31536000" });
   if (error) throw new Error(error.message);
   return path;
 }

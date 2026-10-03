@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition, type CSSProperties, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 
@@ -8,6 +8,7 @@ import { DiceIcon, FlagIcon, FlameIcon, TrophyIcon } from "@/components/ui/icons
 import { TeamLogo } from "@/components/ui/team-logo";
 import type { MatchSide } from "@/lib/db/types";
 import { EVIDENCE_ACCEPT, uploadEvidence } from "@/lib/evidence-upload";
+import { useFormDraft } from "@/lib/form-draft";
 import { createClient } from "@/lib/supabase/client";
 import {
   claimGame,
@@ -78,8 +79,11 @@ function MatchForm({
   children: ReactNode;
 }) {
   const [state, formAction] = useActionState<MatchFormState, FormData>(action, {});
+  // Si la acción falla, lo escrito vuelve al campo en vez de perderse.
+  const formRef = useRef<HTMLFormElement>(null);
+  useFormDraft(formRef, null, state);
   return (
-    <form action={formAction} className={className ?? "space-y-3"}>
+    <form ref={formRef} action={formAction} className={className ?? "space-y-3"}>
       <input type="hidden" name="matchId" value={target.matchId} />
       <input type="hidden" name="slug" value={target.slug} />
       {children}

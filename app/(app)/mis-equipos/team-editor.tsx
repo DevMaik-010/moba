@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 
 import { ValidationBadge } from "@/components/ui/badge";
 import type { CaptainInfo } from "@/lib/account";
 import { TeamLogo } from "@/components/ui/team-logo";
 import { TEAM_LOGO_ACCEPT, uploadTeamLogo } from "@/lib/team-logo-upload";
+import { clearDraft, readDraft, writeDraft } from "@/lib/form-draft";
 import { TEAM_SIZE_BY_MODE } from "@/lib/db/types";
 import type {
   SavedTeam,
@@ -36,6 +37,15 @@ interface Props {
 }
 
 const MAX_SIZE = Math.max(...Object.values(TEAM_SIZE_BY_MODE));
+const DRAFT_DELAY_MS = 300;
+
+/** Lo que se guarda del equipo nuevo mientras se arma. */
+interface TeamDraft {
+  name: string;
+  tag: string;
+  mode: TournamentMode;
+  members: { gameUserId: string; zoneId: string }[];
+}
 
 function emptyRow(): RowState {
   return {
@@ -153,6 +163,56 @@ export function TeamEditor({
 
   const [state, action] = useActionState<SavedTeamFormState, FormData>(saveSavedTeam, {});
   const [teamName, setTeamName] = useState(team?.name ?? "");
+  // Controlado: React 19 vacía los campos no controlados si la acción falla.
+  const [tag, setTag] = useState(team?.tag ?? "");
+
+  // Borrador del equipo nuevo: sobrevive a recargar o a ir a buscar un ID.
+  const draftKey = team ? null : `team:new:${captain.ownerId}`;
+  const [restored, setRestored] = useState(false);
+  const stateRef = useRef(state);
+  const submitted = useRef<{ state: SavedTeamFormState } | null>(null);
+  useLayoutEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    const draft = readDraft<TeamDraft>(draftKey);
+    if (draft) {
+      // localStorage solo existe en el navegador: se lee después de hidratar.
+      /* eslint-disable react-hooks/set-state-in-effect */
+      setTeamName(draft.name);
+      setTag(draft.tag);
+      if (draft.mode in TEAM_SIZE_BY_MODE) setMode(draft.mode);
+      setRows((prev) =>
+        prev.map((row, i) => {
+          const m = draft.members[i];
+          return m ? { ...row, gameUserId: m.gameUserId, zoneId: m.zoneId } : row;
+        }),
+      );
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+    setRestored(true);
+
+    return () => {
+      // Desmontado tras enviar sin un error nuevo: se guardó (o redirigió).
+      const sent = submitted.current;
+      if (sent && !(stateRef.current !== sent.state && stateRef.current.error)) {
+        clearDraft(draftKey);
+      }
+    };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey || !restored) return;
+    const members = rows.map((r) => ({ gameUserId: r.gameUserId, zoneId: r.zoneId }));
+    const empty = !teamName && !tag && members.every((m) => !m.gameUserId && !m.zoneId);
+    const timer = setTimeout(() => {
+      if (empty) clearDraft(draftKey);
+      else writeDraft(draftKey, { name: teamName, tag, mode, members } satisfies TeamDraft);
+    }, DRAFT_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [draftKey, restored, teamName, tag, mode, rows]);
 
   function update(index: number, patch: Partial<RowState>) {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -209,7 +269,13 @@ export function TeamEditor({
   ).length;
 
   return (
-    <form action={action} className="card space-y-5 p-6">
+    <form
+      action={action}
+      onSubmit={() => {
+        submitted.current = { state };
+      }}
+      className="card space-y-5 p-6"
+    >
       {team ? <input type="hidden" name="savedTeamId" value={team.id} /> : null}
       {returnTo ? <input type="hidden" name="volver" value={returnTo} /> : null}
 
@@ -238,7 +304,8 @@ export function TeamEditor({
             id="tag"
             name="tag"
             className="field"
-            defaultValue={team?.tag ?? ""}
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
             placeholder="INV"
             maxLength={6}
           />

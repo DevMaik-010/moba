@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { useFormStatus } from "react-dom";
 
 import { resolveReport, type AdminFormState } from "@/app/admin/actions";
 import type { ReportStatus } from "@/lib/db/types";
+import { useFormDraft } from "@/lib/form-draft";
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -29,9 +30,11 @@ export function ResolveReportForm({
   note: string | null;
 }) {
   const [state, action] = useActionState<AdminFormState, FormData>(resolveReport, {});
+  const formRef = useRef<HTMLFormElement>(null);
+  useFormDraft(formRef, null, state);
 
   return (
-    <form action={action} className="space-y-2">
+    <form ref={formRef} action={action} className="space-y-2">
       <input type="hidden" name="reportId" value={reportId} />
       <div className="flex flex-wrap items-end gap-3">
         <div>

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
@@ -59,24 +60,28 @@ export interface SessionInfo {
   profile: Profile;
 }
 
-/** Sesión + perfil, o null si no hay usuario. */
-export async function getSession(): Promise<SessionInfo | null> {
+/**
+ * Sesión + perfil, o null si no hay usuario. Memoizada por petición: la barra,
+ * el layout y la página la piden en el mismo render y solo se consulta una vez.
+ * getClaims() verifica el JWT sin ir al servidor de Auth cuando el proyecto usa
+ * claves de firma asimétricas (si no, hace la misma llamada que getUser()).
+ */
+export const getSession = cache(async (): Promise<SessionInfo | null> => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) return null;
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", user.id)
+    .eq("id", claims.sub)
     .single();
 
   if (!profile) return null;
 
-  return { userId: user.id, email: user.email ?? null, profile };
-}
+  return { userId: claims.sub, email: claims.email ?? null, profile };
+});
 
 export async function isAdmin(): Promise<boolean> {
   const session = await getSession();

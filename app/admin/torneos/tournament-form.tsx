@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { useFormStatus } from "react-dom";
 
 import { type AdminFormState } from "@/app/admin/actions";
 import { LocalDateTimeInput } from "@/components/ui/local-datetime-input";
 import { BRACKET_SIZES, TEAM_SIZE_BY_MODE } from "@/lib/db/types";
+import { useFormDraft } from "@/lib/form-draft";
 import type { Tournament } from "@/lib/db/types";
 
 function Submit({ label, pendingLabel }: { label: string; pendingLabel: string }) {
@@ -25,15 +26,25 @@ interface Props {
   action: (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
   /** Si viene, el formulario edita ese torneo en vez de crear uno. */
   tournament?: Tournament;
+  /** Id del admin: con él, el borrador de un torneo nuevo se guarda en el navegador. */
+  draftOwnerId?: string;
 }
 
-export function TournamentForm({ action: serverAction, tournament }: Props) {
+export function TournamentForm({ action: serverAction, tournament, draftOwnerId }: Props) {
   const [state, action] = useActionState<AdminFormState, FormData>(serverAction, {});
   // Una vez abierto, el cuadro ya está dibujado con ese modo y esos cupos.
   const structureLocked = tournament !== undefined && tournament.status !== "draft";
+  const formRef = useRef<HTMLFormElement>(null);
+  // Al editar no se guarda: los datos del servidor mandan; solo se protege de
+  // que un error vacíe el formulario.
+  useFormDraft(
+    formRef,
+    !tournament && draftOwnerId ? `tournament:new:${draftOwnerId}` : null,
+    state,
+  );
 
   return (
-    <form action={action} className="card space-y-5 p-6">
+    <form ref={formRef} action={action} className="card space-y-5 p-6">
       {tournament ? <input type="hidden" name="tournamentId" value={tournament.id} /> : null}
 
       <div>

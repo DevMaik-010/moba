@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { useFormStatus } from "react-dom";
 
+import { useFormDraft } from "@/lib/form-draft";
 import { saveGameAccount, type ProfileFormState } from "./actions";
 
 function Submit({ label }: { label: string }) {
@@ -26,9 +27,11 @@ interface Props {
 
 export function GameAccountForm({ gameUserId, zoneId, label }: Props) {
   const [state, action] = useActionState<ProfileFormState, FormData>(saveGameAccount, {});
+  const formRef = useRef<HTMLFormElement>(null);
+  useFormDraft(formRef, null, state);
 
   return (
-    <form action={action} className="space-y-3">
+    <form ref={formRef} action={action} className="space-y-3">
       <div className="grid grid-cols-[1fr_110px] gap-3">
         <div>
           <label className="label" htmlFor="gameUserId">
