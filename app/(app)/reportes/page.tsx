@@ -40,14 +40,14 @@ export default async function ReportesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
           <p className="mt-1 text-sm text-ink-dim">
-            ¿Un equipo o jugador incumplió las reglas? Repórtalo y un admin lo revisa.
+            Los reportes que enviaste desde la sala de tus enfrentamientos. Un admin los revisa.
           </p>
         </div>
         <Link
           href="/reportes/nuevo"
           className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
         >
-          Nuevo reporte
+          Cómo reportar
         </Link>
       </div>
 

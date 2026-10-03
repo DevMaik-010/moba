@@ -1,8 +1,10 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { teamCodeCookie } from "@/lib/match-access";
 import { createClient, getSession } from "@/lib/supabase/server";
 
 export interface ReportFormState {
@@ -12,7 +14,9 @@ export interface ReportFormState {
 
 const reportSchema = z.object({
   tournamentId: z.string().uuid(),
-  matchId: z.string().uuid().nullable(),
+  /** Solo elige qué cookie leer; la base valida el código contra el partido. */
+  slug: z.string().min(1).max(80),
+  matchId: z.string().uuid(),
   teamId: z.string().uuid().nullable(),
   player: z.string().trim().max(60),
   reason: z.enum(["no_show", "cheating", "toxicity", "account_sharing", "false_result", "other"]),
@@ -26,7 +30,8 @@ const reportSchema = z.object({
 
 /**
  * Crea el reporte. Se llama desde el cliente después de subir la evidencia
- * (si la hay) al bucket privado.
+ * (si la hay) al bucket privado. El código del equipo sale de la cookie de la
+ * sala, nunca del formulario: solo quien entró al enfrentamiento lo reporta.
  */
 export async function createReport(input: z.input<typeof reportSchema>): Promise<ReportFormState> {
   const session = await getSession();
@@ -41,6 +46,8 @@ export async function createReport(input: z.input<typeof reportSchema>): Promise
     return { error: "Indica el equipo o el jugador que reportas" };
   }
 
+  const code = (await cookies()).get(teamCodeCookie(data.slug))?.value ?? null;
+
   const supabase = await createClient();
   const { error } = await supabase.rpc("create_report", {
     p_tournament_id: data.tournamentId,
@@ -50,6 +57,7 @@ export async function createReport(input: z.input<typeof reportSchema>): Promise
     p_reason: data.reason,
     p_description: data.description,
     p_evidence_path: data.evidencePath,
+    p_code: code,
   });
   if (error) return { error: error.message };
 

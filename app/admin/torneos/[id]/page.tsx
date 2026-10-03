@@ -8,6 +8,7 @@ import {
   lockTournament,
   openTournament,
   removeTeam,
+  shuffleBracket,
   startTournament,
   unarchiveTournament,
 } from "@/app/admin/actions";
@@ -62,6 +63,7 @@ export default async function AdminTorneoPage({ params }: PageProps<"/admin/torn
   const closed = tournament.status === "finished" || tournament.status === "cancelled";
   const deletable = tournament.status === "draft" || closed;
   const teamsRemovable = tournament.status === "draft" || tournament.status === "open";
+  const shufflable = tournament.status === "open" || tournament.status === "locked";
 
   return (
     <div className="space-y-8">
@@ -106,6 +108,17 @@ export default async function AdminTorneoPage({ params }: PageProps<"/admin/torn
               fields={{ tournamentId: tournament.id }}
               label="Iniciar torneo"
               variant="primary"
+            />
+          ) : null}
+
+          {shufflable ? (
+            <ActionForm
+              action={shuffleBracket}
+              fields={{ tournamentId: tournament.id }}
+              label="Resortear equipos"
+              confirm={`Se vuelven a sortear los cruces de los ${registered.length} equipos inscritos. Las salas ya creadas se descartan. ¿Resortear?`}
+              disabled={registered.length < 2}
+              showNotice
             />
           ) : null}
 

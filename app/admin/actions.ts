@@ -229,7 +229,8 @@ type TournamentRpc =
   | "open_tournament"
   | "lock_tournament"
   | "start_tournament"
-  | "cancel_tournament";
+  | "cancel_tournament"
+  | "shuffle_bracket";
 
 async function callTournamentRpc(
   fn: TournamentRpc,
@@ -269,6 +270,16 @@ export async function startTournament(
   formData: FormData,
 ): Promise<AdminFormState> {
   return callTournamentRpc("start_tournament", String(formData.get("tournamentId")));
+}
+
+/** Vuelve a sortear los cruces entre los equipos inscritos (antes de iniciar). */
+export async function shuffleBracket(
+  _prev: AdminFormState,
+  formData: FormData,
+): Promise<AdminFormState> {
+  const tournamentId = String(formData.get("tournamentId"));
+  const result = await callTournamentRpc("shuffle_bracket", tournamentId);
+  return result.error ? result : { notice: "Cuadro resorteado" };
 }
 
 export async function cancelTournament(

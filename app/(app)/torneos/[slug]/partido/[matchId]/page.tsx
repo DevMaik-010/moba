@@ -578,7 +578,8 @@ export default async function PartidoPage({
         </>
       )}
 
-      <ReportPanel slug={slug} matchId={matchId} />
+      {/* Solo quien está dentro de la sala (código del equipo o admin) puede reportarla. */}
+      {view.viewer && view.has_room ? <ReportPanel slug={slug} matchId={matchId} /> : null}
     </div>
   );
 }

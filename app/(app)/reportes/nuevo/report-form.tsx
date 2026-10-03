@@ -17,18 +17,19 @@ interface Option {
 interface Props {
   userId: string;
   tournamentId: string;
+  slug: string;
+  /** Los dos equipos del enfrentamiento: solo a ellos se puede reportar. */
   teams: Option[];
-  matches: Option[];
-  defaultMatchId: string | null;
+  match: Option;
 }
 
-export function ReportForm({ userId, tournamentId, teams, matches, defaultMatchId }: Props) {
+export function ReportForm({ userId, tournamentId, slug, teams, match }: Props) {
   const router = useRouter();
   const [state, setState] = useState<ReportFormState>({});
   const [busy, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
   // Lo escrito sobrevive a recargar o volver más tarde (la captura no).
-  useFormDraft(formRef, `report:${userId}:${tournamentId}:${defaultMatchId ?? ""}`, state);
+  useFormDraft(formRef, `report:${userId}:${tournamentId}:${match.id}`, state);
 
   function submit(formData: FormData) {
     setState({});
@@ -42,7 +43,8 @@ export function ReportForm({ userId, tournamentId, teams, matches, defaultMatchI
 
         const result = await createReport({
           tournamentId,
-          matchId: String(formData.get("matchId") ?? "") || null,
+          slug,
+          matchId: match.id,
           teamId: String(formData.get("teamId") ?? "") || null,
           player: String(formData.get("player") ?? ""),
           reason: String(formData.get("reason")) as ReportReason,
@@ -115,17 +117,8 @@ export function ReportForm({ userId, tournamentId, teams, matches, defaultMatchI
       </div>
 
       <div>
-        <label className="label" htmlFor="matchId">
-          Enfrentamiento
-        </label>
-        <select id="matchId" name="matchId" className="field" defaultValue={defaultMatchId ?? ""}>
-          <option value="">— Fuera de un enfrentamiento —</option>
-          {matches.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+        <p className="label">Enfrentamiento</p>
+        <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm">{match.label}</p>
       </div>
 
       <div>

@@ -404,6 +404,8 @@ export type Database = {
       };
       lock_tournament: { Args: { p_tournament_id: string }; Returns: undefined };
       start_tournament: { Args: { p_tournament_id: string }; Returns: undefined };
+      shuffle_bracket: { Args: { p_tournament_id: string }; Returns: undefined };
+      team_ranking: { Args: Record<string, never>; Returns: TeamRankingRow[] };
       update_tournament: {
         Args: {
           p_tournament_id: string;
@@ -448,6 +450,8 @@ export type Database = {
           p_reason: ReportReason;
           p_description: string;
           p_evidence_path: string | null;
+          /** Código de inscripción de uno de los dos equipos del enfrentamiento. */
+          p_code: string | null;
         };
         Returns: string;
       };
@@ -482,4 +486,21 @@ export type Database = {
     Views: Record<never, never>;
     CompositeTypes: Record<never, never>;
   };
+};
+
+/** Fila de team_ranking() (0017): equipos campeones de torneos finalizados. */
+export type TeamRankingRow = {
+  /** Equipo guardado, o la inscripción si es anterior a 0005. */
+  team_key: string;
+  name: string;
+  tag: string;
+  logo_path: string | null;
+  titles: number;
+  finals: number;
+  wins: number;
+  losses: number;
+  tournaments: number;
+  last_title_at: string | null;
+  last_title_name: string | null;
+  last_title_slug: string | null;
 };
