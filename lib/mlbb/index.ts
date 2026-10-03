@@ -23,6 +23,9 @@ const RATE_LIMIT = { max: 20, windowMs: 60 * 60 * 1000 };
 /** Techo por IP en el registro, donde todavía no hay usuario al que cobrarle. */
 const SIGNUP_RATE_LIMIT = { max: 10, windowMs: 60 * 60 * 1000 };
 
+/** Techo global del registro: respaldo si alguien rota o falsea IPs. */
+const SIGNUP_GLOBAL_LIMIT = 300;
+
 export class RateLimitError extends Error {
   constructor() {
     super("Demasiadas consultas de ID. Espera un rato antes de seguir.");
@@ -120,13 +123,21 @@ async function consumeSignupQuota(ip: string): Promise<void> {
   const admin = createAdminClient();
   const since = new Date(Date.now() - SIGNUP_RATE_LIMIT.windowMs).toISOString();
 
-  const { count } = await admin
-    .from("mlbb_signup_lookup_log")
-    .select("id", { count: "exact", head: true })
-    .eq("ip", ip)
-    .gte("created_at", since);
+  const [{ count }, { count: total }] = await Promise.all([
+    admin
+      .from("mlbb_signup_lookup_log")
+      .select("id", { count: "exact", head: true })
+      .eq("ip", ip)
+      .gte("created_at", since),
+    admin
+      .from("mlbb_signup_lookup_log")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", since),
+  ]);
 
-  if ((count ?? 0) >= SIGNUP_RATE_LIMIT.max) throw new RateLimitError();
+  if ((count ?? 0) >= SIGNUP_RATE_LIMIT.max || (total ?? 0) >= SIGNUP_GLOBAL_LIMIT) {
+    throw new RateLimitError();
+  }
 
   await admin.from("mlbb_signup_lookup_log").insert({ ip });
 }
@@ -148,6 +159,11 @@ async function lookup(
     const result = await provider.lookup(gameUserId, zoneId);
     last = result;
     if (result.status !== "unavailable") break;
+    // `unavailable` no se cachea: sin este log no queda rastro de por qué falló.
+    console.warn(
+      `[mlbb] ${provider.name} sin respuesta para ${gameUserId} (${zoneId}):`,
+      JSON.stringify(result.raw),
+    );
   }
 
   await writeCache(gameUserId, zoneId, last);
@@ -195,4 +211,71 @@ export async function isGameAccountTaken(gameUserId: string, zoneId: string): Pr
     .eq("game_user_id", gameUserId)
     .eq("zone_id", zoneId);
   return (count ?? 0) > 0;
+}
+
+export interface ProviderDiagnosis extends MlbbLookupResult {
+  ms: number;
+}
+
+export interface MlbbDiagnosis {
+  /** Fila de `mlbb_account_cache` tal cual, aunque haya caducado. */
+  cache: Record<string, unknown> | null;
+  /** Configuración del servidor que responde, para comparar local con producción. */
+  env: { gamecaselaKey: boolean; region: string | null };
+  /** Perfil que ya tiene este ID, si lo hay. */
+  takenBy: { id: string; display_name: string; mlbb_status: string | null } | null;
+  providers: ProviderDiagnosis[];
+}
+
+/**
+ * Consulta TODOS los proveedores sin caché ni cupo y sin escribir nada, para
+ * que el admin vea por qué un ID no se resuelve. El que llama tiene que haber
+ * comprobado el rol.
+ */
+export async function diagnoseMlbbAccount(
+  gameUserId: string,
+  zoneId: string,
+): Promise<MlbbDiagnosis> {
+  const admin = createAdminClient();
+
+  const [{ data: cache }, { data: taken }, providers] = await Promise.all([
+    admin
+      .from("mlbb_account_cache")
+      .select("*")
+      .eq("game_user_id", gameUserId)
+      .eq("zone_id", zoneId)
+      .maybeSingle(),
+    admin
+      .from("profiles")
+      .select("id, display_name, mlbb_status")
+      .eq("game_user_id", gameUserId)
+      .eq("zone_id", zoneId)
+      .maybeSingle(),
+    Promise.all(
+      PROVIDERS.map(async (provider): Promise<ProviderDiagnosis> => {
+        const start = Date.now();
+        try {
+          const result = await provider.lookup(gameUserId, zoneId);
+          return { ...result, ms: Date.now() - start };
+        } catch (error) {
+          return {
+            status: "unavailable",
+            provider: provider.name,
+            raw: { thrown: String(error) },
+            ms: Date.now() - start,
+          };
+        }
+      }),
+    ),
+  ]);
+
+  return {
+    env: {
+      gamecaselaKey: Boolean(process.env.GAMECASELA_FIREBASE_API_KEY),
+      region: process.env.VERCEL_REGION ?? process.env.FLY_REGION ?? null,
+    },
+    cache: (cache as Record<string, unknown> | null) ?? null,
+    takenBy: (taken as MlbbDiagnosis["takenBy"]) ?? null,
+    providers,
+  };
 }

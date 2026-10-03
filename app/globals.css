@@ -1,23 +1,43 @@
 @import "tailwindcss";
 
+/*
+ * Tema esports: noche violeta con neón. Los nombres de los tokens no cambian,
+ * así que todo el sitio toma la paleta nueva sin tocar cada componente.
+ * Contraste: ink-faint sobre surface-1 ≥ 4.5:1; brand sobre surface-1 ≥ 4.5:1.
+ */
 @theme {
-  --color-surface-0: #0a0b10;
-  --color-surface-1: #12141d;
-  --color-surface-2: #1a1d29;
-  --color-surface-3: #242838;
-  --color-line: #2c3145;
-  --color-ink: #eef1f8;
-  --color-ink-dim: #9aa3bd;
-  --color-ink-faint: #656d87;
+  --color-surface-0: #07061a;
+  --color-surface-1: #110f28;
+  --color-surface-2: #1a1738;
+  --color-surface-3: #262250;
+  --color-line: #2f2a5e;
+  --color-ink: #efedff;
+  --color-ink-dim: #b0acd8;
+  --color-ink-faint: #8984b8;
 
-  --color-brand: #4f7cff;
-  --color-brand-soft: #1e2a52;
+  --color-brand: #9170ff;
+  --color-brand-soft: #2a1f63;
+  --color-accent: #22d3ee;
+  --color-gold: #fbbf24;
   --color-win: #2dd4a7;
   --color-warn: #f5b544;
   --color-bad: #f2545b;
 
-  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-sans: var(--font-body), system-ui, sans-serif;
+  --font-display: var(--font-heading), var(--font-body), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --animate-neon: neon 2.4s ease-in-out infinite;
+  --animate-rise: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes neon {
+    0%, 100% { box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-warn) 45%, transparent), 0 0 14px -4px var(--color-warn); }
+    50% { box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-warn) 75%, transparent), 0 0 26px -2px var(--color-warn); }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
 }
 
 html {
@@ -26,16 +46,46 @@ html {
 
 body {
   background-color: var(--color-surface-0);
-  background-image: radial-gradient(1100px 520px at 50% -15%, #1b2447 0%, transparent 65%);
-  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(900px 480px at 15% -10%, color-mix(in oklab, var(--color-brand) 28%, transparent) 0%, transparent 70%),
+    radial-gradient(700px 420px at 95% 0%, color-mix(in oklab, var(--color-accent) 14%, transparent) 0%, transparent 70%),
+    linear-gradient(color-mix(in oklab, var(--color-line) 22%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--color-line) 22%, transparent) 1px, transparent 1px);
+  background-size: auto, auto, 44px 44px, 44px 44px;
+  background-attachment: fixed;
   color: var(--color-ink);
+}
+
+/* Títulos con la tipografía de marcador. */
+h1,
+h2 {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Pequeño sistema de utilidades para no repetir cadenas larguísimas de clases. */
 @utility card {
-  background-color: var(--color-surface-1);
+  background-color: color-mix(in oklab, var(--color-surface-1) 88%, transparent);
+  background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-brand) 7%, transparent), transparent 40%);
   border: 1px solid var(--color-line);
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 6%, transparent), 0 10px 30px -18px black;
+  backdrop-filter: blur(6px);
 }
 
 @utility field {
@@ -43,25 +93,38 @@ body {
   border-radius: 0.5rem;
   border: 1px solid var(--color-line);
   background-color: var(--color-surface-2);
-  padding: 0.55rem 0.75rem;
+  padding: 0.6rem 0.75rem;
   color: var(--color-ink);
-  font-size: 0.875rem;
+  font-size: 1rem;
   outline: none;
+  transition: border-color 150ms, box-shadow 150ms;
 }
 
 @utility label {
   display: block;
   font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-ink-dim);
   margin-bottom: 0.35rem;
 }
 
+/* Rótulo de sección estilo esports: mayúsculas espaciadas con una raya neón. */
+@utility kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
 .field:focus {
   border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand) 25%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand) 30%, transparent);
 }
 
 .field::placeholder {

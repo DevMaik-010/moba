@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { lookupMlbbAccountAsAdmin } from "@/lib/mlbb";
+import { diagnoseMlbbAccount, lookupMlbbAccountAsAdmin, type MlbbDiagnosis } from "@/lib/mlbb";
 import { mlbbIdSchema } from "@/lib/mlbb/types";
 import { createClient, getSession } from "@/lib/supabase/server";
 import { BRACKET_SIZES, TEAM_SIZE_BY_MODE } from "@/lib/db/types";
@@ -536,4 +536,30 @@ export async function revalidateGameId(
   if (status === "valid") return { notice: `Verificado por el sistema${nickname ? `: ${nickname}` : ""}` };
   if (status === "invalid") return { notice: "El sistema dice que ese ID no existe" };
   return { error: "El verificador sigue sin responder. Resuélvelo a mano." };
+}
+
+export interface DiagnoseState {
+  error?: string;
+  input?: { gameUserId: string; zoneId: string };
+  result?: MlbbDiagnosis;
+}
+
+/** Buscador de pruebas: consulta todos los proveedores sin caché ni cupo. */
+export async function diagnoseGameId(
+  _prev: DiagnoseState,
+  formData: FormData,
+): Promise<DiagnoseState> {
+  await requireAdmin();
+
+  const parsed = mlbbIdSchema.safeParse({
+    gameUserId: formData.get("gameUserId"),
+    zoneId: formData.get("zoneId"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+
+  const { gameUserId, zoneId } = parsed.data;
+  return {
+    input: { gameUserId, zoneId },
+    result: await diagnoseMlbbAccount(gameUserId, zoneId),
+  };
 }

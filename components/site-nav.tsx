@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { signOut } from "@/app/(auth)/actions";
 import { BrandLogo } from "@/components/brand-logo";
+import { NavLink } from "@/components/nav-link";
 import { accountBlocker, accountState } from "@/lib/account";
 import { getSession } from "@/lib/supabase/server";
 
@@ -12,41 +13,35 @@ export async function SiteNav() {
   const blocker = state ? accountBlocker(state) : null;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-surface-0/85 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-line bg-surface-0/80 shadow-[0_1px_0_color-mix(in_oklab,var(--color-brand)_25%,transparent)] backdrop-blur-md">
       <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <Link href="/torneos" className="text-base font-bold tracking-tight">
+        <Link href="/torneos" className="font-display text-base tracking-wide">
           <BrandLogo />
         </Link>
 
-        <div className="flex items-center gap-4 text-sm text-ink-dim">
-          <Link href="/torneos" className="hover:text-ink">
-            Torneos
-          </Link>
+        <div className="flex items-center gap-1 text-sm">
+          <NavLink href="/torneos">Torneos</NavLink>
           {session ? (
             <>
-              <Link href="/mis-equipos" className="hover:text-ink">
-                Mis equipos
-              </Link>
-              <Link href="/reportes" className="hover:text-ink">
-                Reportes
-              </Link>
-              <Link href="/perfil" className="relative hover:text-ink">
+              <NavLink href="/mis-equipos">Mis equipos</NavLink>
+              <NavLink href="/reportes">Reportes</NavLink>
+              <NavLink href="/perfil">
                 Mi perfil
                 {blocker ? (
                   <span
-                    className={`absolute -right-2 -top-0.5 size-1.5 rounded-full ${
+                    className={`absolute right-0.5 top-0.5 size-2 rounded-full ${
                       state === "pending" ? "bg-warn" : "bg-bad"
                     }`}
                     aria-label="Tu ID de jugador necesita atención"
                   />
                 ) : null}
-              </Link>
+              </NavLink>
             </>
           ) : null}
           {isAdmin ? (
-            <Link href="/admin" className="font-medium text-brand hover:brightness-125">
+            <NavLink href="/admin" className="text-accent">
               Admin
-            </Link>
+            </NavLink>
           ) : null}
         </div>
 
@@ -59,7 +54,7 @@ export async function SiteNav() {
               <form action={signOut}>
                 <button
                   type="submit"
-                  className="rounded-lg border border-line px-3 py-1.5 text-ink-dim transition hover:text-ink"
+                  className="cursor-pointer rounded-lg border border-line px-3 py-1.5 text-ink-dim transition hover:border-bad/60 hover:text-ink"
                 >
                   Salir
                 </button>
@@ -72,7 +67,7 @@ export async function SiteNav() {
               </Link>
               <Link
                 href="/registro"
-                className="rounded-lg bg-brand px-3 py-1.5 font-semibold text-white transition hover:brightness-110"
+                className="rounded-lg bg-brand px-3 py-1.5 font-semibold text-white shadow-[0_0_18px_-6px_var(--color-brand)] transition hover:brightness-110"
               >
                 Crear cuenta
               </Link>

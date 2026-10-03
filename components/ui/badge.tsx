@@ -15,7 +15,7 @@ const TONE_CLASS: Record<Tone, string> = {
 export function Badge({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${TONE_CLASS[tone]}`}
+      className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider ${TONE_CLASS[tone]}`}
     >
       {children}
     </span>
@@ -33,7 +33,12 @@ const TOURNAMENT_LABEL: Record<TournamentStatus, [string, Tone]> = {
 
 export function TournamentBadge({ status }: { status: TournamentStatus }) {
   const [label, tone] = TOURNAMENT_LABEL[status];
-  return <Badge tone={tone}>{label}</Badge>;
+  return (
+    <Badge tone={tone}>
+      {status === "running" ? <LiveDot /> : null}
+      {label}
+    </Badge>
+  );
 }
 
 const VALIDATION_LABEL: Record<ValidationStatus, [string, Tone]> = {
@@ -57,7 +62,22 @@ const MATCH_LABEL: Record<MatchStatus, [string, Tone]> = {
   bye: ["Bye", "neutral"],
 };
 
+/** Punto que late: marca lo que está pasando ahora mismo. */
+function LiveDot() {
+  return (
+    <span className="relative mr-1.5 flex size-1.5" aria-hidden>
+      <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-75" />
+      <span className="relative inline-flex size-1.5 rounded-full bg-current" />
+    </span>
+  );
+}
+
 export function MatchBadge({ status }: { status: MatchStatus }) {
   const [label, tone] = MATCH_LABEL[status];
-  return <Badge tone={tone}>{label}</Badge>;
+  return (
+    <Badge tone={tone}>
+      {status === "live" ? <LiveDot /> : null}
+      {label}
+    </Badge>
+  );
 }

@@ -97,6 +97,18 @@ export async function postRoomId(
   );
 }
 
+/** El capitán (o el admin, que lo fuerza) pide el sorteo de quién crea la sala. */
+export async function readyForDraw(
+  _prev: MatchFormState,
+  formData: FormData,
+): Promise<MatchFormState> {
+  return captainRpc(
+    formData,
+    (supabase, matchId) => supabase.rpc("ready_for_draw", { p_match_id: matchId }),
+    "Listo. El sorteo empieza cuando el otro capitán también esté listo.",
+  );
+}
+
 /** El capitán avisa que su equipo terminó la preparación de la partida. */
 export async function markReady(
   _prev: MatchFormState,

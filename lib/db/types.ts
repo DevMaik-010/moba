@@ -185,12 +185,18 @@ export type MatchGame = {
 export type MatchGameView = {
   id: string;
   game_no: number;
+  /** Quién crea la sala de esta partida; null mientras se espera su sorteo. */
+  host_side: MatchSide | null;
+  /** El anfitrión salió de un sorteo (P1 y la decisiva), no de intercalar. */
+  host_drawn: boolean;
+  /** null: el anfitrión todavía no publicó la sala de esta partida. */
+  room_posted_at: string | null;
   winner_side: MatchSide | null;
   resolved_via: "rival" | "admin" | null;
   resolved_at: string | null;
   prep_started_at: string;
-  /** Al estar los dos listos o a los 5 minutos de preparación. */
-  starts_at: string;
+  /** Al estar los dos listos o a los 5 minutos de preparación; null sin sala. */
+  starts_at: string | null;
   ready_a: boolean;
   ready_b: boolean;
   claim_side: MatchSide | null;
@@ -238,6 +244,7 @@ export type MatchRoomView = {
     score_a: number;
     score_b: number;
     winner_id: string | null;
+    /** Quién crea la sala de la partida actual. */
     host_side: MatchSide | null;
     /** 3, o 5 en la final. */
     best_of: number;
@@ -254,6 +261,8 @@ export type MatchRoomView = {
   team_a: MatchRoomTeam | null;
   team_b: MatchRoomTeam | null;
   has_room: boolean;
+  /** Capitanes listos para el sorteo pendiente (P1 o la decisiva). */
+  draw: { ready_a: boolean; ready_b: boolean };
   viewer: MatchSide | "admin" | null;
   /** Lado que capitanea el usuario con sesión, si juega este partido. */
   captain_side: MatchSide | null;
@@ -418,6 +427,7 @@ export type Database = {
         Returns: undefined;
       };
       mark_game_ready: { Args: { p_match_id: string }; Returns: undefined };
+      ready_for_draw: { Args: { p_match_id: string }; Returns: MatchSide | null };
       claim_game_win: {
         Args: { p_match_id: string; p_screenshot_path: string };
         Returns: undefined;

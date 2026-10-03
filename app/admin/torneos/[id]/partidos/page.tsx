@@ -184,7 +184,9 @@ export default async function PartidosPage({
                         <div>
                           <dt className="inline text-ink-faint">Crea la sala: </dt>
                           <dd className="inline">
-                            {name(match.host_side === "a" ? match.team_a_id : match.team_b_id)}
+                            {match.host_side
+                              ? name(match.host_side === "a" ? match.team_a_id : match.team_b_id)
+                              : "pendiente de sorteo"}
                           </dd>
                         </div>
                         <div>

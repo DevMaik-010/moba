@@ -43,12 +43,16 @@ const credentialsSchema = z.object({
 // Sin nombre visible: la cuenta se muestra con su nick de MLBB al verificarse.
 const signUpSchema = credentialsSchema.extend(mlbbIdSchema.shape);
 
-/** IP del cliente según el proxy de delante (Vercel, nginx…), para el cupo del verificador. */
+/**
+ * IP del cliente para el cupo del verificador. Primero `x-real-ip`, que la pone
+ * el proxy de delante (Vercel, nginx…): el primer valor de `x-forwarded-for`
+ * lo puede inventar el navegador si el proxy solo le añade el suyo al final.
+ */
 async function clientIp(): Promise<string> {
   const h = await headers();
   return (
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     h.get("x-real-ip")?.trim() ||
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     "desconocida"
   );
 }
@@ -73,6 +77,38 @@ export async function signIn(
 
   revalidatePath("/", "layout");
   redirect(safeReturnPath(formData.get("next")) ?? "/torneos");
+}
+
+export interface GameIdCheck {
+  status: LookupStatus | "taken" | "rate_limited";
+  nickname?: string;
+}
+
+/**
+ * Verificación anticipada mientras el usuario rellena el registro. Usa el mismo
+ * camino que signUp (caché → cupo por IP → proveedores), así que al enviar el
+ * formulario el veredicto ya está en caché y la creación de la cuenta no espera
+ * al proveedor. Es solo informativa: signUp vuelve a comprobarlo todo.
+ */
+export async function precheckGameId(gameUserId: string, zoneId: string): Promise<GameIdCheck> {
+  const parsed = mlbbIdSchema.safeParse({ gameUserId, zoneId });
+  if (!parsed.success) return { status: "unavailable" };
+
+  try {
+    if (await isGameAccountTaken(parsed.data.gameUserId, parsed.data.zoneId)) {
+      return { status: "taken" };
+    }
+    const result = await lookupMlbbAccountForSignup(
+      parsed.data.gameUserId,
+      parsed.data.zoneId,
+      await clientIp(),
+    );
+    return { status: result.status, nickname: result.nickname };
+  } catch (error) {
+    if (error instanceof RateLimitError) return { status: "rate_limited" };
+    console.error("[registro] verificación anticipada no disponible:", error);
+    return { status: "unavailable" };
+  }
 }
 
 export async function signUp(

@@ -22,6 +22,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               ["/admin", "Torneos"],
               ["/admin/torneos/nuevo", "Nuevo torneo"],
               ["/admin/validaciones", "Validaciones"],
+              ["/admin/buscador-id", "Buscador de ID"],
               ["/admin/reportes", "Reportes"],
               ["/admin/usuarios", "Usuarios"],
             ].map(([href, label]) => (

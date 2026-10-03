@@ -21,11 +21,11 @@ export function SeriesPips({ wins, needed, leading, size = "sm", label }: Props)
       {Array.from({ length: needed }, (_, i) => (
         <span
           key={i}
-          className={`${dot} rounded-full border transition-colors ${
+          className={`${dot} rotate-45 rounded-[2px] border transition-colors ${
             i < wins
               ? leading
-                ? "border-win bg-win"
-                : "border-brand bg-brand"
+                ? "border-win bg-win shadow-[0_0_6px_var(--color-win)]"
+                : "border-brand bg-brand shadow-[0_0_6px_var(--color-brand)]"
               : "border-line bg-transparent"
           }`}
         />

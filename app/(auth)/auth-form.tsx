@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 
-import type { AuthFormState } from "./actions";
+import { precheckGameId, type AuthFormState, type GameIdCheck } from "./actions";
 
 function Submit({ label, signup }: { label: string; signup?: boolean }) {
   const { pending } = useFormStatus();
@@ -99,6 +99,119 @@ function SignupResult({ created }: { created: NonNullable<AuthFormState["created
   );
 }
 
+const GAME_USER_ID = /^[0-9]{5,12}$/;
+const ZONE_ID = /^[0-9]{3,6}$/;
+/** Espera tras la última tecla antes de consultar, para no gastar cupo en cada dígito. */
+const PRECHECK_DELAY_MS = 600;
+
+const CHECK_COPY: Record<GameIdCheck["status"], { tone: string; text: string }> = {
+  valid: { tone: "text-win", text: "✓ Cuenta encontrada" },
+  invalid: { tone: "text-bad", text: "✗ Ese ID no existe en ese servidor. Revisa los dos números." },
+  taken: { tone: "text-bad", text: "✗ Ese ID de jugador ya está registrado en otra cuenta" },
+  unavailable: {
+    tone: "text-warn",
+    text: "No pudimos verificarlo ahora; si creas la cuenta, un administrador lo revisará.",
+  },
+  rate_limited: { tone: "text-warn", text: "Demasiadas consultas. Espera un rato." },
+};
+
+/**
+ * ID y servidor de MLBB. Verifica en segundo plano en cuanto los dos tienen
+ * formato válido: el usuario ve su nick antes de enviar y signUp encuentra el
+ * veredicto ya en caché.
+ */
+function GameIdFields({
+  defaultGameUserId,
+  defaultZoneId,
+}: {
+  defaultGameUserId?: string;
+  defaultZoneId?: string;
+}) {
+  const [gameUserId, setGameUserId] = useState(defaultGameUserId ?? "");
+  const [zoneId, setZoneId] = useState(defaultZoneId ?? "");
+  const [check, setCheck] = useState<{ key: string; result: GameIdCheck } | null>(null);
+
+  const id = gameUserId.trim();
+  const zone = zoneId.trim();
+  const key = GAME_USER_ID.test(id) && ZONE_ID.test(zone) ? `${id}:${zone}` : null;
+
+  useEffect(() => {
+    if (!key) return;
+    let stale = false;
+    const timer = setTimeout(async () => {
+      const result = await precheckGameId(id, zone);
+      if (!stale) setCheck({ key, result });
+    }, PRECHECK_DELAY_MS);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [key, id, zone]);
+
+  // Solo se muestra el veredicto del par que hay escrito ahora mismo.
+  const result = key && check?.key === key ? check.result : null;
+  const copy = result ? CHECK_COPY[result.status] : null;
+
+  return (
+    <fieldset className="space-y-3 rounded-lg border border-line bg-surface-2/50 p-3">
+      <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">
+        Tu cuenta de MLBB
+      </legend>
+      <div className="grid grid-cols-[1fr_96px] gap-3">
+        <div>
+          <label className="label" htmlFor="gameUserId">
+            ID de jugador
+          </label>
+          <input
+            id="gameUserId"
+            name="gameUserId"
+            className="field font-mono"
+            inputMode="numeric"
+            pattern="[0-9]{5,12}"
+            placeholder="123456789"
+            defaultValue={defaultGameUserId}
+            onChange={(e) => setGameUserId(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="zoneId">
+            Servidor
+          </label>
+          <input
+            id="zoneId"
+            name="zoneId"
+            className="field font-mono"
+            inputMode="numeric"
+            pattern="[0-9]{3,6}"
+            placeholder="1234"
+            defaultValue={defaultZoneId}
+            onChange={(e) => setZoneId(e.target.value)}
+            required
+          />
+        </div>
+      </div>
+      <p aria-live="polite" className="min-h-4 text-xs">
+        {key && !result ? <span className="text-ink-dim">Verificando ID…</span> : null}
+        {copy ? (
+          <span className={copy.tone}>
+            {copy.text}
+            {result?.status === "valid" && result.nickname ? (
+              <>
+                : <span className="font-semibold">{result.nickname}</span>
+              </>
+            ) : null}
+          </span>
+        ) : null}
+      </p>
+      <p className="text-xs text-ink-faint">
+        Están en tu perfil dentro del juego. Tu nombre en la plataforma será tu nick de MLBB.
+        Un ID solo puede estar en una cuenta.
+      </p>
+    </fieldset>
+  );
+}
+
 interface Props {
   action: (state: AuthFormState, formData: FormData) => Promise<AuthFormState>;
   submitLabel: string;
@@ -151,47 +264,10 @@ export function AuthForm({ action, submitLabel, signup, next }: Props) {
         </div>
 
         {signup ? (
-          <fieldset className="space-y-3 rounded-lg border border-line bg-surface-2/50 p-3">
-            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">
-              Tu cuenta de MLBB
-            </legend>
-            <div className="grid grid-cols-[1fr_96px] gap-3">
-              <div>
-                <label className="label" htmlFor="gameUserId">
-                  ID de jugador
-                </label>
-                <input
-                  id="gameUserId"
-                  name="gameUserId"
-                  className="field font-mono"
-                  inputMode="numeric"
-                  pattern="[0-9]{5,12}"
-                  placeholder="123456789"
-                  defaultValue={values.gameUserId}
-                  required
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="zoneId">
-                  Servidor
-                </label>
-                <input
-                  id="zoneId"
-                  name="zoneId"
-                  className="field font-mono"
-                  inputMode="numeric"
-                  pattern="[0-9]{3,6}"
-                  placeholder="1234"
-                  defaultValue={values.zoneId}
-                  required
-                />
-              </div>
-            </div>
-            <p className="text-xs text-ink-faint">
-              Están en tu perfil dentro del juego. Tu nombre en la plataforma será tu nick de
-              MLBB. Un ID solo puede estar en una cuenta.
-            </p>
-          </fieldset>
+          <GameIdFields
+            defaultGameUserId={values.gameUserId}
+            defaultZoneId={values.zoneId}
+          />
         ) : null}
 
         {state.error ? (

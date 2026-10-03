@@ -19,7 +19,7 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="card px-4 py-3">
       <p className="text-[11px] uppercase tracking-wider text-ink-faint">{label}</p>
-      <p className="mt-0.5 font-mono text-lg font-semibold">{value}</p>
+      <p className="mt-0.5 font-display text-xl tabular-nums">{value}</p>
     </div>
   );
 }
@@ -135,9 +135,11 @@ export default async function TorneoPage({ params }: PageProps<"/torneos/[slug]"
                     "Por definir"}
                 </p>
                 <p className="text-sm text-ink-dim">
-                  {myRoom.match.host_side === myRoom.captain_side
-                    ? "Tu equipo crea la sala en MLBB y publica el ID."
-                    : "El rival crea la sala; verás el ID al entrar."}
+                  {!myRoom.match.host_side
+                    ? "Entra a la sala del enfrentamiento para sortear quién la crea."
+                    : myRoom.match.host_side === myRoom.captain_side
+                      ? "Tu equipo crea la sala en MLBB y publica el ID."
+                      : "El rival crea la sala; verás el ID al entrar."}
                 </p>
               </>
             ) : (

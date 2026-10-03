@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { TournamentBadge } from "@/components/ui/badge";
+import { SwordsIcon } from "@/components/ui/icons";
 import { LocalDate } from "@/components/ui/local-date";
 import { createClient } from "@/lib/supabase/server";
 import type { Tournament } from "@/lib/db/types";
@@ -34,7 +35,11 @@ export default async function TorneosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Torneos</h1>
+        <p className="kicker">
+          <span className="h-0.5 w-6 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)]" aria-hidden />
+          Mobile Legends · Bang Bang
+        </p>
+        <h1 className="mt-2 text-3xl tracking-tight sm:text-4xl">Torneos</h1>
         <p className="mt-1 text-sm text-ink-dim">
           Arma tu equipo, valida los IDs y mira cómo se llena el cuadro en vivo.
         </p>
@@ -46,26 +51,34 @@ export default async function TorneosPage() {
         </div>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2">
-          {tournaments.map((t) => (
-            <li key={t.id}>
+          {tournaments.map((t, i) => {
+            const filled = counts.get(t.id) ?? 0;
+            const pct = Math.min(100, Math.round((filled / t.bracket_size) * 100));
+            return (
+            <li key={t.id} className="animate-rise" style={{ animationDelay: `${i * 40}ms` }}>
               <Link
                 href={`/torneos/${t.slug}`}
-                className="card block p-5 transition hover:border-brand/60"
+                className="card group relative block cursor-pointer overflow-hidden p-5 transition duration-200 hover:-translate-y-0.5 hover:border-brand/70 hover:shadow-[0_14px_36px_-18px_var(--color-brand)]"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="font-semibold">{t.name}</h2>
+                <SwordsIcon
+                  size={96}
+                  className="pointer-events-none absolute -right-4 -bottom-4 text-brand/10 transition group-hover:text-brand/20"
+                />
+                <div className="relative flex items-start justify-between gap-3">
+                  <h2 className="text-lg leading-tight">{t.name}</h2>
                   <TournamentBadge status={t.status} />
                 </div>
 
-                <dl className="mt-4 grid grid-cols-3 gap-2 text-sm">
+                <dl className="relative mt-4 grid grid-cols-3 gap-2 text-sm">
                   <div>
                     <dt className="text-xs text-ink-faint">Modo</dt>
-                    <dd className="font-mono font-semibold text-brand">{t.mode}</dd>
+                    <dd className="font-display text-lg text-brand">{t.mode}</dd>
                   </div>
                   <div>
                     <dt className="text-xs text-ink-faint">Cupos</dt>
-                    <dd className="font-mono">
-                      {counts.get(t.id) ?? 0}/{t.bracket_size}
+                    <dd className="font-display text-lg tabular-nums">
+                      {filled}
+                      <span className="text-sm text-ink-faint">/{t.bracket_size}</span>
                     </dd>
                   </div>
                   <div>
@@ -82,9 +95,21 @@ export default async function TorneosPage() {
                     </dd>
                   </div>
                 </dl>
+
+                <div
+                  className="relative mt-4 h-1.5 overflow-hidden rounded-full bg-surface-3"
+                  role="img"
+                  aria-label={`${filled} de ${t.bracket_size} cupos ocupados`}
+                >
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-brand to-accent shadow-[0_0_10px_var(--color-brand)]"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

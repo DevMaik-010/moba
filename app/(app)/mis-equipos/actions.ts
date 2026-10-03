@@ -87,17 +87,21 @@ export async function saveSavedTeam(
     seen.add(key);
   }
 
-  for (const member of others) {
-    try {
-      await lookupMlbbAccount(member.gameUserId, member.zoneId, session.userId);
-    } catch (error) {
-      // Rate-limit, proveedor caído o falta la service role key: el ID queda
-      // pendiente y lo revisa el admin. Nunca se rompe el guardado por esto.
-      if (!(error instanceof RateLimitError)) {
-        console.error("[mis-equipos] validación de ID no disponible:", error);
+  // En paralelo: en serie, con el proveedor lento, un roster de 5 superaba el
+  // tiempo máximo de la función y el guardado entero se cortaba.
+  await Promise.all(
+    others.map(async (member) => {
+      try {
+        await lookupMlbbAccount(member.gameUserId, member.zoneId, session.userId);
+      } catch (error) {
+        // Rate-limit, proveedor caído o falta la service role key: el ID queda
+        // pendiente y lo revisa el admin. Nunca se rompe el guardado por esto.
+        if (!(error instanceof RateLimitError)) {
+          console.error("[mis-equipos] validación de ID no disponible:", error);
+        }
       }
-    }
-  }
+    }),
+  );
 
   const savedTeamId = String(formData.get("savedTeamId") ?? "") || null;
 
@@ -212,14 +216,20 @@ export async function retrySavedTeamValidation(
 
   if (!pending || pending.length === 0) return { notice: "No hay IDs pendientes" };
 
-  for (const member of pending) {
-    try {
-      await lookupMlbbAccount(member.game_user_id, member.zone_id, session.userId);
-    } catch (error) {
-      if (error instanceof RateLimitError) return { error: error.message };
-      console.error("[mis-equipos] reintento de validación falló:", error);
-    }
-  }
+  const outcomes = await Promise.all(
+    pending.map(async (member) => {
+      try {
+        await lookupMlbbAccount(member.game_user_id, member.zone_id, session.userId);
+        return null;
+      } catch (error) {
+        if (error instanceof RateLimitError) return error;
+        console.error("[mis-equipos] reintento de validación falló:", error);
+        return null;
+      }
+    }),
+  );
+  const rateLimited = outcomes.find((e) => e instanceof RateLimitError);
+  if (rateLimited) return { error: rateLimited.message };
 
   const { data: left, error } = await supabase.rpc("refresh_saved_team_validation", {
     p_saved_team_id: savedTeamId,
