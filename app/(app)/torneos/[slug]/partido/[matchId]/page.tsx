@@ -512,8 +512,8 @@ export default async function PartidoPage({
                 <span className="font-mono text-2xl font-semibold tracking-wider">
                   {room.room_id}
                 </span>
-                <span className="ml-auto">
-                  <CopyButton value={room.room_id} />
+                <span className="w-full sm:ml-auto sm:w-auto">
+                  <CopyButton value={room.room_id} label="Copiar ID de sala" prominent />
                 </span>
               </div>
             ) : (

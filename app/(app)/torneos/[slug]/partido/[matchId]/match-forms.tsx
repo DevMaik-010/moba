@@ -297,20 +297,70 @@ export function DisputeForm(target: Target) {
   );
 }
 
-export function CopyButton({ value }: { value: string }) {
+/** Copia con la API del portapapeles y, si no está (http, navegadores viejos), a la antigua. */
+async function copyText(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = value;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
+
+export function CopyButton({
+  value,
+  label = "Copiar",
+  prominent = false,
+}: {
+  value: string;
+  label?: string;
+  /** Botón grande y de color, para el ID de sala. */
+  prominent?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
       onClick={() => {
-        void navigator.clipboard.writeText(value).then(() => {
+        void copyText(value).then((ok) => {
+          if (!ok) return;
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         });
       }}
-      className="rounded-md border border-line px-2 py-1 text-xs text-ink-dim transition hover:border-brand hover:text-ink"
+      aria-live="polite"
+      className={
+        prominent
+          ? `inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition sm:w-auto ${
+              copied
+                ? "bg-win shadow-[0_0_18px_-6px_var(--color-win)]"
+                : "bg-brand shadow-[0_0_18px_-6px_var(--color-brand)] hover:brightness-110"
+            }`
+          : "rounded-md border border-line px-2 py-1 text-xs text-ink-dim transition hover:border-brand hover:text-ink"
+      }
     >
-      {copied ? "Copiado" : "Copiar"}
+      {prominent ? (
+        <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          {copied ? (
+            <path d="M5 12l5 5L20 7" />
+          ) : (
+            <>
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+            </>
+          )}
+        </svg>
+      ) : null}
+      {copied ? "Copiado" : label}
     </button>
   );
 }
