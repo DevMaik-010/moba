@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { SeriesPips } from "@/components/bracket/series-pips";
+import { LocalDate } from "@/components/ui/local-date";
 import { TeamLogo } from "@/components/ui/team-logo";
 import { winsNeeded } from "@/lib/bracket/bracket";
 import type { Match, Team } from "@/lib/db/types";
@@ -89,6 +90,13 @@ function Side({
   );
 }
 
+const SCHEDULE_FORMAT: Intl.DateTimeFormatOptions = {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+};
+
 export function MatchCard({ match, teams, bestOf, highlightTeamId, href }: Props) {
   const teamA = match.team_a_id ? teams.get(match.team_a_id) : undefined;
   const teamB = match.team_b_id ? teams.get(match.team_b_id) : undefined;
@@ -151,6 +159,16 @@ export function MatchCard({ match, teams, bestOf, highlightTeamId, href }: Props
       ) : ready ? (
         <p className="border-t border-brand/30 bg-brand/10 px-3 py-1 text-[11px] font-semibold text-brand">
           Listo para jugar
+          {match.scheduled_at ? (
+            <>
+              {" · "}
+              <LocalDate iso={match.scheduled_at} options={SCHEDULE_FORMAT} />
+            </>
+          ) : null}
+        </p>
+      ) : match.status === "pending" && match.scheduled_at ? (
+        <p className="border-t border-line bg-surface-2/70 px-3 py-1 text-[11px] text-ink-dim">
+          <LocalDate iso={match.scheduled_at} options={SCHEDULE_FORMAT} />
         </p>
       ) : null}
     </>

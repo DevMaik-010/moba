@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 
 import { rejectGameClaim, resolveGame } from "@/app/admin/actions";
 import { ActionForm } from "@/components/admin/action-form";
+import { ScheduleForm } from "@/components/admin/schedule-form";
 import { SeriesPips } from "@/components/bracket/series-pips";
 import { Badge, MatchBadge } from "@/components/ui/badge";
+import { LocalDate } from "@/components/ui/local-date";
 import { bestOf, roundLabel, winsNeeded } from "@/lib/bracket/bracket";
 import { signedEvidenceUrls } from "@/lib/evidence-server";
 import { createClient } from "@/lib/supabase/server";
@@ -283,6 +285,35 @@ export default async function PartidosPage({
                           />
                         ))}
                       </div>
+                    ) : null}
+
+                    {match.status !== "done" &&
+                    match.status !== "bye" &&
+                    tournament.status !== "finished" &&
+                    tournament.status !== "cancelled" ? (
+                      <details className="text-sm" open={match.next_match_id === null}>
+                        <summary className="cursor-pointer text-xs text-ink-faint hover:text-ink">
+                          {match.next_match_id === null ? "Fecha de la final" : "Fecha del enfrentamiento"}
+                          {match.scheduled_at ? (
+                            <>
+                              {" · "}
+                              <LocalDate
+                                iso={match.scheduled_at}
+                                options={{ dateStyle: "medium", timeStyle: "short" }}
+                              />
+                            </>
+                          ) : (
+                            " · sin programar"
+                          )}
+                        </summary>
+                        <div className="mt-3">
+                          <ScheduleForm
+                            matchId={match.id}
+                            tournamentId={id}
+                            current={match.scheduled_at}
+                          />
+                        </div>
+                      </details>
                     ) : null}
 
                     {playable && !claim ? (

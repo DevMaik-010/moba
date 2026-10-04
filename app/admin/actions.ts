@@ -574,3 +574,43 @@ export async function diagnoseGameId(
     result: await diagnoseMlbbAccount(gameUserId, zoneId),
   };
 }
+
+const scheduleSchema = z.object({
+  matchId: z.string().uuid(),
+  // ISO desde el navegador (ya con la zona del admin); vacío borra la fecha.
+  scheduledAt: z
+    .string()
+    .trim()
+    .refine((v) => !v || !Number.isNaN(Date.parse(v)), "Fecha inválida"),
+});
+
+/** Programa (o borra) la fecha y hora de un enfrentamiento. */
+export async function setMatchSchedule(
+  _prev: AdminFormState,
+  formData: FormData,
+): Promise<AdminFormState> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  const parsed = scheduleSchema.safeParse({
+    matchId: formData.get("matchId"),
+    scheduledAt: formData.get("scheduledAt") ?? "",
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Fecha inválida" };
+  }
+
+  const { matchId, scheduledAt } = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_match_schedule", {
+    p_match_id: matchId,
+    p_scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+  });
+  if (error) return { error: error.message };
+
+  revalidateResults(String(formData.get("tournamentId")));
+  return { notice: scheduledAt ? "Fecha guardada" : "Fecha quitada" };
+}

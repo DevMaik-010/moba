@@ -141,6 +141,7 @@ export type Match = {
   next_side: MatchSide | null;
   /** Lado cuyo capitán crea la sala en MLBB. Se sortea al quedar listo. */
   host_side: MatchSide | null;
+  /** Fecha y hora programadas por el admin (0020). */
   scheduled_at: string | null;
   updated_at: string;
 };
@@ -252,6 +253,8 @@ export type MatchRoomView = {
     /** 3, o 5 en la final. */
     best_of: number;
     wins_needed: number;
+    /** Fecha y hora programadas por el admin; null si no tiene. */
+    scheduled_at: string | null;
   };
   tournament: {
     id: string;
@@ -435,6 +438,10 @@ export type Database = {
       };
       mark_game_ready: { Args: { p_match_id: string }; Returns: undefined };
       claim_no_show: { Args: { p_match_id: string }; Returns: undefined };
+      set_match_schedule: {
+        Args: { p_match_id: string; p_scheduled_at: string | null };
+        Returns: undefined;
+      };
       admin_start_game: { Args: { p_match_id: string }; Returns: undefined };
       admin_set_match_score: {
         Args: { p_match_id: string; p_score_a: number; p_score_b: number };

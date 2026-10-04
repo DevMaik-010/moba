@@ -13,6 +13,7 @@ import {
   ShieldAlertIcon,
   TrophyIcon,
 } from "@/components/ui/icons";
+import { LocalDate } from "@/components/ui/local-date";
 import { TeamLogo } from "@/components/ui/team-logo";
 import { signedEvidenceUrls } from "@/lib/evidence-server";
 import { resolvedViaLabel, teamCodeCookie } from "@/lib/match-access";
@@ -654,6 +655,15 @@ export default async function PartidoPage({
           </h1>
           <MatchBadge status={match.status} />
         </div>
+        {match.scheduled_at && match.status !== "done" && match.status !== "bye" ? (
+          <p className="mt-2 inline-flex items-center gap-2 rounded-lg border border-brand/40 bg-brand/10 px-3 py-1.5 text-sm">
+            <span className="text-xs font-semibold uppercase tracking-wider text-brand">Programado</span>
+            <LocalDate
+              iso={match.scheduled_at}
+              options={{ weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }}
+            />
+          </p>
+        ) : null}
       </div>
 
       <Scoreboard view={view} />
@@ -800,6 +810,9 @@ export default async function PartidoPage({
           (match.status === "ready" || match.status === "live" || match.status === "done") ? (
             <AdminControls
               target={target}
+              tournamentId={tournament.id}
+              scheduledAt={match.scheduled_at}
+              isFinal={match.round === tournament.rounds}
               teamA={view.team_a?.name ?? "Equipo A"}
               teamB={view.team_b?.name ?? "Equipo B"}
               score={{ a: match.score_a, b: match.score_b }}

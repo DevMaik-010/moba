@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition, type CSSPro
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 
+import { ScheduleForm } from "@/components/admin/schedule-form";
 import { DiceIcon, FlagIcon, FlameIcon, TrophyIcon } from "@/components/ui/icons";
 import { TeamLogo } from "@/components/ui/team-logo";
 import type { MatchSide } from "@/lib/db/types";
@@ -657,6 +658,9 @@ export function HostDraw({
  */
 export function AdminControls({
   target,
+  tournamentId,
+  scheduledAt,
+  isFinal,
   teamA,
   teamB,
   score,
@@ -666,6 +670,9 @@ export function AdminControls({
   game,
 }: {
   target: Target;
+  tournamentId: string;
+  scheduledAt: string | null;
+  isFinal: boolean;
   teamA: string;
   teamB: string;
   score: { a: number; b: number };
@@ -684,6 +691,16 @@ export function AdminControls({
           Lo que hagas aquí queda registrado y los capitanes lo ven al instante.
         </p>
       </div>
+
+      {!done ? (
+        <div className="space-y-2 border-t border-line pt-4">
+          <p className="text-sm font-semibold">{isFinal ? "Fecha de la final" : "Fecha del enfrentamiento"}</p>
+          <p className="text-xs text-ink-faint">
+            El plazo de 5 minutos para publicar la sala de la partida 1 no corre antes de esta hora.
+          </p>
+          <ScheduleForm matchId={target.matchId} tournamentId={tournamentId} current={scheduledAt} />
+        </div>
+      ) : null}
 
       {game ? (
         <div className="space-y-3 border-t border-line pt-4">

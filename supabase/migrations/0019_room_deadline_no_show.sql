@@ -4,6 +4,8 @@
 -- El equipo que crea la sala tiene 5 minutos para publicar su ID:
 --   * partida 1: desde que arranca el torneo (o desde que el enfrentamiento
 --     queda listo, si el torneo ya estaba en juego) → match_rooms.room_due_at;
+--     si el admin programó el enfrentamiento (matches.scheduled_at), el reloj
+--     no corre antes de esa hora;
 --   * siguientes: desde que se abre la partida o se sortea su anfitrión
 --     (match_games.prep_started_at, que ya marcan open_next_game y ready_for_draw).
 -- Vencido el plazo sin sala, el capitán rival reclama la victoria de esa
@@ -29,15 +31,20 @@ security definer
 set search_path = public
 as $$
 declare
-  m matches;
-  g match_games;
+  m     matches;
+  g     match_games;
+  v_due timestamptz;
 begin
   select * into m from matches where id = p_match_id;
   if not found or m.host_side is null then
     return null;
   end if;
   if m.status = 'ready' then
-    return (select room_due_at from match_rooms where match_id = p_match_id and room_id is null);
+    select room_due_at into v_due from match_rooms where match_id = p_match_id and room_id is null;
+    if v_due is null then
+      return null;
+    end if;
+    return greatest(v_due, m.scheduled_at + interval '5 minutes');
   end if;
   if m.status <> 'live' then
     return null;
@@ -222,7 +229,8 @@ begin
     'match', jsonb_build_object(
       'id', m.id, 'round', m.round, 'slot', m.slot, 'status', m.status,
       'score_a', m.score_a, 'score_b', m.score_b, 'winner_id', m.winner_id,
-      'host_side', m.host_side, 'best_of', v_bo, 'wins_needed', v_bo / 2 + 1
+      'host_side', m.host_side, 'best_of', v_bo, 'wins_needed', v_bo / 2 + 1,
+      'scheduled_at', m.scheduled_at
     ),
     'tournament', jsonb_build_object(
       'id', t.id, 'name', t.name, 'slug', t.slug, 'status', t.status, 'mode', t.mode,
