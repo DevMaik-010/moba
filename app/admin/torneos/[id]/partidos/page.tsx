@@ -8,7 +8,7 @@ import { Badge, MatchBadge } from "@/components/ui/badge";
 import { bestOf, roundLabel, winsNeeded } from "@/lib/bracket/bracket";
 import { signedEvidenceUrls } from "@/lib/evidence-server";
 import { createClient } from "@/lib/supabase/server";
-import { matchPath } from "@/lib/match-access";
+import { matchPath, resolvedViaLabel } from "@/lib/match-access";
 import type {
   Match,
   MatchGame,
@@ -213,7 +213,7 @@ export default async function PartidosPage({
                             >
                               P{g.game_no}: {sideName(g.winner_side!)}{" "}
                               <span className="text-ink-faint">
-                                ({g.resolved_via === "rival" ? "confirmó el rival" : "admin"})
+                                ({resolvedViaLabel(g.resolved_via)})
                               </span>
                             </li>
                           ))}

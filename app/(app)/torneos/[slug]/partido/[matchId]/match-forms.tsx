@@ -11,7 +11,12 @@ import { EVIDENCE_ACCEPT, uploadEvidence } from "@/lib/evidence-upload";
 import { useFormDraft } from "@/lib/form-draft";
 import { createClient } from "@/lib/supabase/client";
 import {
+  adminRejectClaim,
+  adminResolveGame,
+  adminSetScore,
+  adminStartGame,
   claimGame,
+  claimNoShow,
   confirmClaim,
   disputeClaim,
   enterMatch,
@@ -32,10 +37,13 @@ function Submit({
   label,
   variant = "primary",
   icon,
+  confirm,
 }: {
   label: string;
   variant?: "primary" | "ghost" | "danger" | "win";
   icon?: ReactNode;
+  /** Pide confirmación antes de enviar. */
+  confirm?: string;
 }) {
   const { pending } = useFormStatus();
   const styles = {
@@ -48,6 +56,9 @@ function Submit({
     <button
       type="submit"
       disabled={pending}
+      onClick={(event) => {
+        if (confirm && !window.confirm(confirm)) event.preventDefault();
+      }}
       className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 ${styles}`}
     >
       {pending ? "Un momento…" : (
@@ -117,12 +128,16 @@ export function CodeForm(target: Target) {
   );
 }
 
-export function RoomIdForm({ current, ...target }: Target & { current: string | null }) {
+export function RoomIdForm({
+  current,
+  label = "ID de la sala que creaste en MLBB",
+  ...target
+}: Target & { current: string | null; label?: string }) {
   return (
     <MatchForm action={postRoomId} target={target}>
       <div>
         <label className="label" htmlFor="roomId">
-          ID de la sala que creaste en MLBB
+          {label}
         </label>
         <input
           id="roomId"
@@ -146,6 +161,20 @@ export function ReadyForm(target: Target) {
   return (
     <MatchForm action={markReady} target={target}>
       <Submit label="Mi equipo está listo" variant="win" />
+    </MatchForm>
+  );
+}
+
+/** Vencido el plazo sin sala, el capitán rival se queda con la partida. */
+export function NoShowForm({ gameNo, rival, ...target }: Target & { gameNo: number; rival: string }) {
+  return (
+    <MatchForm action={claimNoShow} target={target}>
+      <Submit
+        label={`Reclamar victoria de la partida ${gameNo}`}
+        variant="win"
+        icon={<TrophyIcon size={16} />}
+        confirm={`${rival} no publicó la sala a tiempo. ¿Reclamar la partida ${gameNo}?`}
+      />
     </MatchForm>
   );
 }
@@ -619,5 +648,116 @@ export function HostDraw({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Controles del admin dentro de la sala: arrancar la partida, adjudicarla,
+ * rechazar un reporte y fijar el marcador de la serie.
+ */
+export function AdminControls({
+  target,
+  teamA,
+  teamB,
+  score,
+  winsNeeded,
+  bestOf,
+  done,
+  game,
+}: {
+  target: Target;
+  teamA: string;
+  teamB: string;
+  score: { a: number; b: number };
+  winsNeeded: number;
+  bestOf: number;
+  done: boolean;
+  /** Partida en curso, si la hay. */
+  game: { id: string; gameNo: number; claimSide: MatchSide | null; canStart: boolean } | null;
+}) {
+  const name = (side: MatchSide) => (side === "a" ? teamA : teamB);
+  return (
+    <section className="card animate-rise space-y-5 border-brand/40 p-6">
+      <div>
+        <h2 className="font-semibold">Controles del admin</h2>
+        <p className="mt-0.5 text-sm text-ink-dim">
+          Lo que hagas aquí queda registrado y los capitanes lo ven al instante.
+        </p>
+      </div>
+
+      {game ? (
+        <div className="space-y-3 border-t border-line pt-4">
+          <p className="text-sm font-semibold">Partida {game.gameNo}</p>
+          <div className="flex flex-wrap items-start gap-2">
+            {game.canStart ? (
+              <MatchForm action={adminStartGame} target={target}>
+                <Submit
+                  label="Iniciar ya (saltar preparación)"
+                  variant="ghost"
+                  confirm={`¿Empezar la partida ${game.gameNo} ahora?`}
+                />
+              </MatchForm>
+            ) : null}
+            {(["a", "b"] as const).map((side) => (
+              <MatchForm key={side} action={adminResolveGame} target={target}>
+                <input type="hidden" name="gameId" value={game.id} />
+                <input type="hidden" name="winner" value={side} />
+                <Submit
+                  label={`Gana ${name(side)}`}
+                  variant={game.claimSide === side ? "win" : "ghost"}
+                  icon={<TrophyIcon size={16} />}
+                  confirm={`¿Dar la partida ${game.gameNo} a ${name(side)}?`}
+                />
+              </MatchForm>
+            ))}
+            {game.claimSide ? (
+              <MatchForm action={adminRejectClaim} target={target}>
+                <input type="hidden" name="gameId" value={game.id} />
+                <Submit
+                  label="Rechazar reporte"
+                  variant="danger"
+                  confirm="Se borra el reporte y el capitán puede volver a reportar. ¿Continuar?"
+                />
+              </MatchForm>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <MatchForm
+        key={`${score.a}-${score.b}`}
+        action={adminSetScore}
+        target={target}
+        className="space-y-3 border-t border-line pt-4">
+        <div>
+          <p className="text-sm font-semibold">Cambiar el marcador</p>
+          <p className="mt-0.5 text-xs text-ink-faint">
+            {done
+              ? `El partido terminó: puedes corregir el marcador, pero el ganador sigue con ${winsNeeded}.`
+              : `Bo${bestOf}: si un equipo llega a ${winsNeeded}, la serie se cierra y avanza en el cuadro. La partida en curso vuelve a empezar.`}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          {(["a", "b"] as const).map((side) => (
+            <div key={side}>
+              <label className="label" htmlFor={`admin-score-${side}`}>
+                {name(side)}
+              </label>
+              <input
+                id={`admin-score-${side}`}
+                name={side === "a" ? "scoreA" : "scoreB"}
+                type="number"
+                min={0}
+                max={winsNeeded}
+                defaultValue={side === "a" ? score.a : score.b}
+                className="field w-20"
+                required
+              />
+            </div>
+          ))}
+          <Submit label="Guardar marcador" confirm="¿Cambiar el marcador de la serie?" />
+        </div>
+      </MatchForm>
+    </section>
   );
 }

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { SeriesPips } from "@/components/bracket/series-pips";
-import { MatchBadge } from "@/components/ui/badge";
+import { MatchBadge, ValidationBadge } from "@/components/ui/badge";
 import { roundLabel } from "@/lib/bracket/bracket";
 import {
   BoltIcon,
@@ -15,16 +15,18 @@ import {
 } from "@/components/ui/icons";
 import { TeamLogo } from "@/components/ui/team-logo";
 import { signedEvidenceUrls } from "@/lib/evidence-server";
-import { teamCodeCookie } from "@/lib/match-access";
+import { resolvedViaLabel, teamCodeCookie } from "@/lib/match-access";
 import { createClient, getSession } from "@/lib/supabase/server";
-import type { MatchGameView, MatchSide, MatchRoomView } from "@/lib/db/types";
+import type { MatchGameView, MatchSide, MatchRoomView, Profile, Team, TeamMember } from "@/lib/db/types";
 import {
+  AdminControls,
   ClaimGameForm,
   CodeForm,
   ConfirmForm,
   CopyButton,
   DisputeForm,
   HostDraw,
+  NoShowForm,
   PrepCountdown,
   ReadyForm,
   RoomIdForm,
@@ -114,6 +116,177 @@ function HostBanner({ view, gameNo }: { view: MatchRoomView; gameNo: number }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+interface RosterTeam {
+  team: MatchRoomView["team_a"];
+  captain: Pick<Profile, "display_name" | "game_user_id" | "zone_id"> | null;
+  members: TeamMember[];
+}
+
+/**
+ * Solo admin: integrantes inscritos de cada equipo y las capturas de toda la
+ * serie, para cotejar nicks e IDs con lo que se ve en pantalla.
+ */
+function AdminVerification({
+  view,
+  rosters,
+  screenshots,
+}: {
+  view: MatchRoomView;
+  rosters: Record<MatchSide, RosterTeam>;
+  screenshots: Map<string, string>;
+}) {
+  const teamName = (side: MatchSide) =>
+    (side === "a" ? view.team_a?.name : view.team_b?.name) ?? "—";
+  const shots = view.games.filter((g) => g.screenshot_path && screenshots.has(g.screenshot_path));
+
+  return (
+    <section className="card animate-rise space-y-5 border-brand/40 p-6">
+      <div>
+        <h2 className="font-semibold">Verificación de equipos</h2>
+        <p className="mt-0.5 text-sm text-ink-dim">
+          Compara los nicks e IDs inscritos con los que aparecen en las capturas.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {(["a", "b"] as const).map((side) => {
+          const { team, captain, members } = rosters[side];
+          return (
+            <div key={side} className="space-y-3 rounded-xl border border-line p-3">
+              <div className="flex items-center gap-3">
+                <TeamLogo name={team?.name} tag={team?.tag} path={team?.logo_path} size={36} className="rounded-lg" />
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{team?.name ?? "Por definir"}</p>
+                  {captain ? (
+                    <p className="truncate text-xs text-ink-faint">
+                      Capitán: {captain.display_name}
+                      {captain.game_user_id ? (
+                        <span className="font-mono">
+                          {" "}
+                          · {captain.game_user_id} ({captain.zone_id})
+                        </span>
+                      ) : null}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              {members.length === 0 ? (
+                <p className="text-sm text-ink-dim">Sin integrantes registrados.</p>
+              ) : (
+                <ol className="space-y-2">
+                  {members.map((member) => (
+                    <li
+                      key={member.id}
+                      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-surface-2 px-3 py-2 text-sm"
+                    >
+                      <span className="font-mono text-xs text-ink-faint">#{member.slot}</span>
+                      <span className="font-semibold">{member.nickname ?? "Sin nick"}</span>
+                      {member.is_captain ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand">
+                          Capitán
+                        </span>
+                      ) : null}
+                      <span className="flex w-full flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs text-ink-dim">
+                          {member.game_user_id} ({member.zone_id})
+                        </span>
+                        <CopyButton value={member.game_user_id} label="Copiar ID" />
+                        <span className="ml-auto">
+                          <ValidationBadge status={member.validation_status} />
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="space-y-3 border-t border-line pt-4">
+        <p className="text-sm font-semibold">Capturas de la serie</p>
+        {shots.length === 0 ? (
+          <p className="text-sm text-ink-dim">Todavía no hay capturas de esta serie.</p>
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {shots.map((g) => {
+              const url = screenshots.get(g.screenshot_path!)!;
+              const side = g.winner_side ?? g.claim_side;
+              return (
+                <li key={g.id} className="space-y-1.5">
+                  <p className="text-xs text-ink-dim">
+                    <span className="font-semibold text-ink">P{g.game_no}</span>
+                    {side ? ` · ${g.winner_side ? "ganó" : "reporta"} ${teamName(side)}` : ""}
+                    {g.resolved_via ? ` (${resolvedViaLabel(g.resolved_via)})` : ""}
+                  </p>
+                  <a href={url} target="_blank" rel="noreferrer" className="block">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- URL firmada temporal */}
+                    <img
+                      src={url}
+                      alt={`Captura de la partida ${g.game_no}`}
+                      className="max-h-64 w-full rounded-lg border border-line object-contain"
+                    />
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Plazo de 5 minutos del anfitrión para publicar la sala. Al vencer, el
+ * capitán rival puede reclamar la partida.
+ */
+function RoomDeadline({
+  view,
+  dueAt,
+  gameNo,
+  target,
+}: {
+  view: MatchRoomView;
+  dueAt: string;
+  gameNo: number;
+  target: { matchId: string; slug: string };
+}) {
+  const host = view.match.host_side!;
+  const rivalSide: MatchSide = host === "a" ? "b" : "a";
+  const hostName = (host === "a" ? view.team_a : view.team_b)?.name ?? "El anfitrión";
+  const rivalName = (rivalSide === "a" ? view.team_a : view.team_b)?.name ?? "el rival";
+  const expired = Date.parse(view.server_now) >= Date.parse(dueAt);
+  const cap = view.captain_side;
+
+  if (!expired) {
+    return (
+      <div className="space-y-2 rounded-lg border border-warn/40 bg-warn/5 px-4 py-3">
+        <p className="text-sm text-ink-dim">
+          {cap === host
+            ? `Tienes 5 minutos para publicar la sala de la partida ${gameNo}. Si no, ${rivalName} puede reclamar la victoria.`
+            : `${hostName} tiene 5 minutos para publicar la sala de la partida ${gameNo}. Si no lo hace, ${rivalName} puede reclamar la victoria.`}
+        </p>
+        <PrepCountdown startsAt={dueAt} serverNow={view.server_now} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-bad/50 bg-bad/10 px-4 py-3">
+      <p className="text-sm font-semibold text-bad">
+        {cap === host
+          ? `Se acabó el tiempo: ${rivalName} ya puede reclamar la partida ${gameNo}. Publica la sala ahora.`
+          : cap === rivalSide
+            ? `${hostName} no publicó la sala a tiempo. Puedes reclamar la partida ${gameNo}.`
+            : `${hostName} no publicó la sala a tiempo: ${rivalName} puede reclamar la partida ${gameNo}.`}
+      </p>
+      {cap === rivalSide ? <NoShowForm {...target} gameNo={gameNo} rival={hostName} /> : null}
     </div>
   );
 }
@@ -371,6 +544,41 @@ function CurrentGame({
   );
 }
 
+/** Integrantes y capitán de los dos equipos; el admin los lee por RLS. */
+async function loadRosters(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  view: MatchRoomView,
+): Promise<Record<MatchSide, RosterTeam>> {
+  const ids = [view.team_a?.id, view.team_b?.id].filter((id): id is string => !!id);
+  const [{ data: members }, { data: teams }] = await Promise.all([
+    supabase.from("team_members").select("*").in("team_id", ids).order("slot"),
+    supabase.from("teams").select("id, captain_id").in("id", ids),
+  ]);
+  const captainIds = ((teams ?? []) as Pick<Team, "id" | "captain_id">[]).map((t) => t.captain_id);
+  const { data: profiles } = captainIds.length
+    ? await supabase
+        .from("profiles")
+        .select("id, display_name, game_user_id, zone_id")
+        .in("id", captainIds)
+    : { data: [] };
+
+  const profileById = new Map(
+    ((profiles ?? []) as Pick<Profile, "id" | "display_name" | "game_user_id" | "zone_id">[]).map(
+      (p) => [p.id, p],
+    ),
+  );
+  const captainOf = (teamId: string | undefined) => {
+    const captainId = (teams ?? []).find((t) => t.id === teamId)?.captain_id;
+    return (captainId ? profileById.get(captainId) : null) ?? null;
+  };
+  const roster = (team: MatchRoomView["team_a"]): RosterTeam => ({
+    team,
+    captain: captainOf(team?.id),
+    members: ((members ?? []) as TeamMember[]).filter((m) => m.team_id === team?.id),
+  });
+  return { a: roster(view.team_a), b: roster(view.team_b) };
+}
+
 export default async function PartidoPage({
   params,
 }: PageProps<"/torneos/[slug]/partido/[matchId]">) {
@@ -409,13 +617,25 @@ export default async function PartidoPage({
         : null;
   const roomGameNo = roomGame?.game_no ?? currentGame?.game_no ?? 1;
 
-  // get_match_room solo entrega la ruta a quien tiene acceso a la sala.
-  const urls = view.viewer ? await signedEvidenceUrls([currentGame?.screenshot_path]) : new Map();
+  const isAdmin = view.viewer === "admin";
+
+  // get_match_room solo entrega la ruta a quien tiene acceso a la sala; el
+  // admin recibe las de toda la serie para verificar.
+  const [urls, rosters] = await Promise.all([
+    view.viewer
+      ? signedEvidenceUrls(
+          isAdmin ? view.games.map((g) => g.screenshot_path) : [currentGame?.screenshot_path],
+        )
+      : Promise.resolve(new Map<string, string>()),
+    isAdmin && view.has_room ? loadRosters(supabase, view) : Promise.resolve(null),
+  ]);
   const screenshotUrl = currentGame?.screenshot_path
     ? (urls.get(currentGame.screenshot_path) ?? null)
     : null;
 
   const winner = match.winner_id === view.team_a?.id ? view.team_a : view.team_b;
+  // El admin publica la sala en nombre del anfitrión cuando no la capitanea él.
+  const adminPostsRoom = isAdmin && view.captain_side !== match.host_side;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -524,12 +744,24 @@ export default async function PartidoPage({
               </p>
             )}
 
-            {view.captain_side &&
-            view.captain_side === match.host_side &&
+            {view.room_due_at && match.host_side && running ? (
+              <RoomDeadline view={view} dueAt={view.room_due_at} gameNo={roomGameNo} target={target} />
+            ) : null}
+
+            {match.host_side &&
+            (view.captain_side === match.host_side || isAdmin) &&
             running &&
             (match.status === "ready" || match.status === "live") &&
-            !pendingClaim ? (
-              <RoomIdForm {...target} current={room?.room_id ?? null} />
+            (!pendingClaim || isAdmin) ? (
+              <RoomIdForm
+                {...target}
+                current={room?.room_id ?? null}
+                label={
+                  adminPostsRoom
+                    ? `ID de sala (admin, en nombre de ${hostTeam?.name ?? "el anfitrión"})`
+                    : undefined
+                }
+              />
             ) : null}
 
             {!running && match.status !== "done" ? (
@@ -563,7 +795,33 @@ export default async function PartidoPage({
             />
           ) : null}
 
-          {view.viewer === "admin" && room ? (
+          {isAdmin &&
+          (running || tournament.status === "finished") &&
+          (match.status === "ready" || match.status === "live" || match.status === "done") ? (
+            <AdminControls
+              target={target}
+              teamA={view.team_a?.name ?? "Equipo A"}
+              teamB={view.team_b?.name ?? "Equipo B"}
+              score={{ a: match.score_a, b: match.score_b }}
+              winsNeeded={match.wins_needed}
+              bestOf={match.best_of}
+              done={match.status === "done"}
+              game={
+                currentGame
+                  ? {
+                      id: currentGame.id,
+                      gameNo: currentGame.game_no,
+                      claimSide: currentGame.claim_side,
+                      canStart: !!currentGame.room_posted_at && notStarted,
+                    }
+                  : null
+              }
+            />
+          ) : null}
+
+          {rosters ? <AdminVerification view={view} rosters={rosters} screenshots={urls} /> : null}
+
+          {isAdmin && room ? (
             <p className="text-xs text-ink-faint">
               Admin · códigos: {view.team_a?.name} <span className="font-mono">{room.code_a}</span>{" "}
               · {view.team_b?.name} <span className="font-mono">{room.code_b}</span> ·{" "}

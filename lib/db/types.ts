@@ -175,11 +175,14 @@ export type MatchGame = {
   disputed_at: string | null;
   dispute_note: string | null;
   winner_side: MatchSide | null;
-  resolved_via: "rival" | "admin" | null;
+  resolved_via: GameResolvedVia | null;
   resolved_by: string | null;
   resolved_at: string | null;
   created_at: string;
 };
+
+/** rival: lo confirmó el capitán rival; no_show: el anfitrión no publicó la sala a tiempo. */
+export type GameResolvedVia = "rival" | "admin" | "no_show";
 
 /** Partida tal como la devuelve get_match_room. */
 export type MatchGameView = {
@@ -192,7 +195,7 @@ export type MatchGameView = {
   /** null: el anfitrión todavía no publicó la sala de esta partida. */
   room_posted_at: string | null;
   winner_side: MatchSide | null;
-  resolved_via: "rival" | "admin" | null;
+  resolved_via: GameResolvedVia | null;
   resolved_at: string | null;
   prep_started_at: string;
   /** Al estar los dos listos o a los 5 minutos de preparación; null sin sala. */
@@ -268,6 +271,8 @@ export type MatchRoomView = {
   captain_side: MatchSide | null;
   /** Hora del servidor, para que la cuenta regresiva no dependa del reloj del cliente. */
   server_now: string;
+  /** Hasta cuándo tiene el anfitrión para publicar la sala de la partida actual; null si no corre. */
+  room_due_at: string | null;
   games: MatchGameView[];
   room: {
     room_id: string | null;
@@ -429,6 +434,12 @@ export type Database = {
         Returns: undefined;
       };
       mark_game_ready: { Args: { p_match_id: string }; Returns: undefined };
+      claim_no_show: { Args: { p_match_id: string }; Returns: undefined };
+      admin_start_game: { Args: { p_match_id: string }; Returns: undefined };
+      admin_set_match_score: {
+        Args: { p_match_id: string; p_score_a: number; p_score_b: number };
+        Returns: undefined;
+      };
       ready_for_draw: { Args: { p_match_id: string }; Returns: MatchSide | null };
       claim_game_win: {
         Args: { p_match_id: string; p_screenshot_path: string };

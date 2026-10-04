@@ -179,3 +179,101 @@ export async function disputeClaim(
     "Disputa enviada al admin",
   );
 }
+
+/** Acciones del admin desde la sala; las RPC comprueban que sea admin. */
+async function adminRpc(
+  formData: FormData,
+  run: (
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    matchId: string,
+  ) => PromiseLike<{ error: { message: string } | null }>,
+  notice: string,
+): Promise<MatchFormState> {
+  const session = await getSession();
+  if (!session || session.profile.role !== "admin") {
+    return { error: "Solo un administrador puede hacer esto" };
+  }
+  const result = await captainRpc(formData, run, notice);
+  if (!result.error) revalidatePath("/admin", "layout");
+  return result;
+}
+
+/** Corta la preparación: la partida en curso empieza ya. */
+export async function adminStartGame(
+  _prev: MatchFormState,
+  formData: FormData,
+): Promise<MatchFormState> {
+  return adminRpc(
+    formData,
+    (supabase, matchId) => supabase.rpc("admin_start_game", { p_match_id: matchId }),
+    "Partida iniciada",
+  );
+}
+
+/** Da la partida en curso a un lado, con o sin reporte del capitán. */
+export async function adminResolveGame(
+  _prev: MatchFormState,
+  formData: FormData,
+): Promise<MatchFormState> {
+  const winner = String(formData.get("winner"));
+  if (winner !== "a" && winner !== "b") return { error: "Ganador inválido" };
+  const gameId = String(formData.get("gameId") ?? "");
+  return adminRpc(
+    formData,
+    (supabase) => supabase.rpc("resolve_game", { p_game_id: gameId, p_winner: winner }),
+    "Partida registrada",
+  );
+}
+
+/** Descarta el reporte de la partida en curso; el capitán puede volver a reportar. */
+export async function adminRejectClaim(
+  _prev: MatchFormState,
+  formData: FormData,
+): Promise<MatchFormState> {
+  const gameId = String(formData.get("gameId") ?? "");
+  return adminRpc(
+    formData,
+    (supabase) => supabase.rpc("reject_game_claim", { p_game_id: gameId }),
+    "Reporte rechazado",
+  );
+}
+
+const scoreSchema = z.object({
+  scoreA: z.coerce.number().int().min(0).max(5),
+  scoreB: z.coerce.number().int().min(0).max(5),
+});
+
+/** Fija el marcador de la serie; si alguien llega a las victorias necesarias, la cierra. */
+export async function adminSetScore(
+  _prev: MatchFormState,
+  formData: FormData,
+): Promise<MatchFormState> {
+  const parsed = scoreSchema.safeParse({
+    scoreA: formData.get("scoreA"),
+    scoreB: formData.get("scoreB"),
+  });
+  if (!parsed.success) return { error: "Marcador inválido" };
+  // El formato (Bo3 / Bo5) lo valida admin_set_match_score.
+  return adminRpc(
+    formData,
+    (supabase, matchId) =>
+      supabase.rpc("admin_set_match_score", {
+        p_match_id: matchId,
+        p_score_a: parsed.data.scoreA,
+        p_score_b: parsed.data.scoreB,
+      }),
+    "Marcador actualizado",
+  );
+}
+
+/** El anfitrión no publicó la sala a tiempo: la partida es para el capitán rival. */
+export async function claimNoShow(
+  _prev: MatchFormState,
+  formData: FormData,
+): Promise<MatchFormState> {
+  return captainRpc(
+    formData,
+    (supabase, matchId) => supabase.rpc("claim_no_show", { p_match_id: matchId }),
+    "Victoria registrada: el rival no publicó la sala a tiempo",
+  );
+}

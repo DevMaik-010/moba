@@ -1,3 +1,5 @@
+import type { GameResolvedVia } from "@/lib/db/types";
+
 /**
  * Cookie donde queda el código de inscripción de un equipo, una vez que alguien
  * lo ingresó bien. Es por torneo: el mismo código abre todos los
@@ -19,4 +21,11 @@ export function normalizeTeamCode(raw: unknown): string {
 
 export function matchPath(slug: string, matchId: string): string {
   return `/torneos/${slug}/partido/${matchId}`;
+}
+
+/** Cómo quedó registrada una partida, para mostrarlo junto al ganador. */
+export function resolvedViaLabel(via: GameResolvedVia | null): string {
+  if (via === "rival") return "confirmó el rival";
+  if (via === "no_show") return "el rival no publicó la sala";
+  return "admin";
 }
