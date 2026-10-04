@@ -30,6 +30,7 @@ import {
   NoShowForm,
   PrepCountdown,
   ReadyForm,
+  StartCountdown,
   RoomIdForm,
   RoomLive,
 } from "./match-forms";
@@ -635,6 +636,11 @@ export default async function PartidoPage({
     : null;
 
   const winner = match.winner_id === view.team_a?.id ? view.team_a : view.team_b;
+  // Programado para más adelante: hasta esa hora no corre el plazo de la sala.
+  const upcoming =
+    !!match.scheduled_at &&
+    (match.status === "pending" || match.status === "ready") &&
+    Date.parse(view.server_now) < Date.parse(match.scheduled_at);
   // El admin publica la sala en nombre del anfitrión cuando no la capitanea él.
   const adminPostsRoom = isAdmin && view.captain_side !== match.host_side;
 
@@ -665,6 +671,8 @@ export default async function PartidoPage({
           </p>
         ) : null}
       </div>
+
+      {upcoming ? <StartCountdown startsAt={match.scheduled_at!} serverNow={view.server_now} /> : null}
 
       <Scoreboard view={view} />
 
@@ -754,7 +762,7 @@ export default async function PartidoPage({
               </p>
             )}
 
-            {view.room_due_at && match.host_side && running ? (
+            {view.room_due_at && match.host_side && running && !upcoming ? (
               <RoomDeadline view={view} dueAt={view.room_due_at} gameNo={roomGameNo} target={target} />
             ) : null}
 

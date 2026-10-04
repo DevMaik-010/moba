@@ -313,6 +313,59 @@ export function PrepCountdown({ startsAt, serverNow }: { startsAt: string; serve
   );
 }
 
+/**
+ * Cuenta regresiva hasta la hora programada del enfrentamiento. Al llegar a
+ * cero vuelve a pedir la página: recién ahí corre el plazo para la sala.
+ */
+export function StartCountdown({ startsAt, serverNow }: { startsAt: string; serverNow: string }) {
+  const router = useRouter();
+  const [left, setLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    const offset = Date.parse(serverNow) - Date.now();
+    const target = Date.parse(startsAt);
+    const tick = () => {
+      const ms = Math.max(0, target - (Date.now() + offset));
+      setLeft(ms);
+      if (ms === 0) {
+        clearInterval(id);
+        router.refresh();
+      }
+    };
+    const first = setTimeout(tick, 0);
+    const id = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, [startsAt, serverNow, router]);
+
+  const total = left === null ? null : Math.ceil(left / 1000);
+  const parts =
+    total === null
+      ? null
+      : [
+          { value: Math.floor(total / 86400), unit: "d" },
+          { value: Math.floor((total % 86400) / 3600), unit: "h" },
+          { value: Math.floor((total % 3600) / 60), unit: "m" },
+          { value: total % 60, unit: "s" },
+        ];
+
+  return (
+    <div className="card flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-brand/40 bg-brand/5 px-4 py-3">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Empieza en</span>
+      <span className="font-mono text-2xl font-semibold tabular-nums" aria-live="off">
+        {parts
+          ? parts
+              .filter((p, i) => i > 0 || p.value > 0)
+              .map((p) => `${String(p.value).padStart(2, "0")}${p.unit}`)
+              .join(" ")
+          : "--"}
+      </span>
+    </div>
+  );
+}
+
 export function DisputeForm(target: Target) {
   return (
     <MatchForm action={disputeClaim} target={target}>
